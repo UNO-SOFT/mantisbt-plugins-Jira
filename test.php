@@ -2,7 +2,10 @@
 require 'vendor/autoload.php';
 
 use JiraRestApi\Configuration\ArrayConfiguration;
+use JiraRestApi\Auth\AuthService;
 use JiraRestApi\Issue\IssueService;
+use JiraRestApi\JiraClient;
+use JiraRestApi\JiraException;
 
 function create_issue_service($p_host, $p_user, $p_password, string $p_api_uri = null) {
 	$config = new ArrayConfiguration(
@@ -50,9 +53,18 @@ function create_issue_service($p_host, $p_user, $p_password, string $p_api_uri =
 }
 
 function jira_new_comment($p_body) {
-    $comment = new Comment();
-    $comment->setBody($p_body);
-    return $comment;
+	$comment = new Comment();
+	$comment->setBody($p_body);
+	return $comment;
 }
+
+$svc = create_issue_service(
+	'https://partnerapi-uat.aegon.hu/partner/v1/ticket/update', 
+	'',
+	'',
+	'',
+);
+var_dump($svc);
+$svc->get('NONDEV-44', array() );
 
 // vim: set noet shiftwidth=4:

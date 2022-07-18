@@ -1,5 +1,5 @@
 {
 	"require": {
-		"lesstif/php-jira-rest-client": "^2.0"
+		"lesstif/php-jira-rest-client": "^4.0"
 	}
 }
