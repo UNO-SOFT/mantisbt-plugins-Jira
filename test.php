@@ -7,47 +7,50 @@ use JiraRestApi\Issue\IssueService;
 use JiraRestApi\JiraClient;
 use JiraRestApi\JiraException;
 
-function create_issue_service($p_host, $p_user, $p_password, string $p_api_uri = null) {
-	$config = new ArrayConfiguration(
-		array(
-			'jiraHost' => $p_host,
-			'jiraUser' => $p_user,
-			'jiraPassword' => $p_password,
+function create_issue_service(
+	string $p_host, 
+	string $p_jira_user, string $p_jira_password, 
+	string $p_svc_user, string $p_svc_password,
+	string $p_api_uri = null,
+) {
+	$config = array(
+		'jiraHost' => $p_host,
+		'jiraUser' => $p_jira_user,
+		'jiraPassword' => $p_jira_password,
 
-			'jiraLogEnabled' => true,
-			'jiraLogFile' => 'jira.log',
-			'jiraLogLevel' => 'DEBUG',
+		'jiraLogEnabled' => true,
+		'jiraLogFile' => 'jira.log',
+		'jiraLogLevel' => 'DEBUG',
 
-			'useTokenBasedAuth' => false,
-			//'personalAccessToken' => $p_token,
-			'useV3RestApi' => false,
-			'cookieAuthEnabled' => false,
-			//'cookieFile' => './jira-cookie.txt',
+		'useTokenBasedAuth' => false,
+		//'personalAccessToken' => $p_token,
+		'useV3RestApi' => false,
+		'cookieAuthEnabled' => false,
+		//'cookieFile' => './jira-cookie.txt',
 
-			'curlOptVerbose' => true,
-	));
-	$svc = new IssueService($config);
+		'curlOptVerbose' => true,
+	);
+	$svc = new IssueService(new ArrayConfiguration($config));
 	if( $p_api_uri !== null ) {
 		$svc->setAPIURI($p_api_uri);
 	}
-	echo "auth:" . $svc->exec(
+	$t_result = $svc->exec(
 		'/auth?grant_type=password', 
-		json_encode(array('username'=>'svc_unosoft', 'password'=>'?'), JSON_UNESCAPED_UNICODE),
-		'POST');
-//curl --location --request POST 'https://partnerapi-uat.aegon.hu/partner/v1/ticket/update/auth?grant_type=password'  --header 'Content-Type: application/json' -u :--data-raw '{ "username": "svc_unosoft", "password": "*********"}'
-	$auth_svc = new AuthService($config);
-// curl --location --request POST 'https://partnerapi-uat.aegon.hu/partner/v1/ticket/update/auth?grant_type=password' \
-//   --header 'Content-Type: application/json' \
-//   --header 'Authorization: Basic ' \
-//   --data-raw '{ "username": "svc_unosoft", "password": "*********"}'
+		json_encode(array(
+			'username' => $p_svc_user, 
+			'password' => $p_svc_password,
+		), JSON_UNESCAPED_UNICODE),
+		'POST',
+	);
+	//echo "auth: $t_result";
+	$t_result = json_decode($t_result, true);
+	//$config['cookieAuthEnabled'] = true;
+	$config['useTokenBasedAuth'] = true;
+	$config['personalAccessToken'] = $t_result['access_token'];
+	$svc = new IssueService(new ArrayConfiguration($config));
 	if( $p_api_uri !== null ) {
-		$auth_svc->setAPIURI($p_api_uri);
-		$auth_svc->setURI( '' );
+		$svc->setAPIURI($p_api_uri);
 	}
-	$auth_svc->setAPIURI('/auth');
-	$session = $auth_svc->login($p_user, $p_password);
-	echo "$session";
-	var_dump($session);
 
 	return $svc;
 }
@@ -60,11 +63,12 @@ function jira_new_comment($p_body) {
 
 $svc = create_issue_service(
 	'https://partnerapi-uat.aegon.hu/partner/v1/ticket/update', 
-	'',
-	'',
-	'',
+	p_jira_user: getenv('JIRA_USER'),
+	p_jira_password: getenv('JIRA_PASSWORD'),
+	p_svc_user: getenv('SVC_USER'), 
+	p_svc_password: getenv('SVC_PASSWORD'), 
+	p_api_uri: '',
 );
-var_dump($svc);
-$svc->get('NONDEV-44', array() );
+$svc->get('INCIDENT-6500', array() );
 
 // vim: set noet shiftwidth=4:
