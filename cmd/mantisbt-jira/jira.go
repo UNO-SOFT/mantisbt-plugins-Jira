@@ -723,12 +723,14 @@ type JIRAIssue struct {
 }
 
 func (svc *Jira) IssueGet(ctx context.Context, issueID string, fields []string) (JIRAIssue, error) {
-	URL := svc.URL.JoinPath("/issue/" + url.PathEscape(issueID))
+	URL := svc.URLFor("issue", issueID, "")
 	if len(fields) != 0 {
-		URL.Query()["fields"] = fields
+		q := URL.Query()
+		q["fields"] = fields
+		URL.RawQuery = q.Encode()
 	}
 	var issue JIRAIssue
-	req, err := http.NewRequestWithContext(ctx, "GET", URL.String(), nil)
+	req, err := svc.NewRequest(ctx, "GET", URL, nil)
 	if err != nil {
 		return issue, err
 	}
@@ -745,14 +747,32 @@ func (svc *Jira) IssuePut(ctx context.Context, issue JIRAIssue) error {
 	if err != nil {
 		return err
 	}
-	URL := svc.URL.JoinPath("/issue/" + url.PathEscape(issue.ID))
-	req, err := http.NewRequestWithContext(ctx, "PUT", URL.String(), bytes.NewReader(b))
+	req, err := svc.NewRequest(ctx, "PUT", svc.URLFor("issue", issue.ID, ""), b)
 	if err != nil {
 		return err
 	}
 	resp, err := svc.Do(ctx, req)
 	logger.Info("IssuePut", "resp", resp, "error", err)
 	return err
+}
+func (svc *Jira) URLFor(typ, id, action string) *url.URL {
+	URL := svc.URL.JoinPath("/"+typ, url.PathEscape(id))
+	if action != "" {
+		URL = URL.JoinPath(action)
+	}
+	return URL
+}
+func (svc *Jira) NewRequest(ctx context.Context, method string, URL *url.URL, body []byte) (*http.Request, error) {
+	var r io.Reader
+	if body != nil {
+		r = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, URL.String(), r)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	return req, nil
 }
 
 type JIRAUser struct {
@@ -788,8 +808,12 @@ type getCommentsResp struct {
 }
 
 func (svc *Jira) IssueComments(ctx context.Context, issueID string) ([]JIRAComment, error) {
-	URL := svc.URL.JoinPath("/issue/" + url.PathEscape(issueID) + "/comment")
-	req, err := http.NewRequestWithContext(ctx, "GET", URL.String()+"?startAt=0&maxResults=65536", nil)
+	URL := svc.URLFor("issue", issueID, "comment")
+	q := URL.Query()
+	q.Set("startAt", "0")
+	q.Set("maxResults", "65536")
+	URL.RawQuery = q.Encode()
+	req, err := svc.NewRequest(ctx, "GET", URL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -809,12 +833,12 @@ type JSONCommentBody struct {
 }
 
 func (svc *Jira) IssueAddComment(ctx context.Context, issueID, body string) error {
-	URL := svc.URL.JoinPath("/issue/" + url.PathEscape(issueID) + "/comment")
+	URL := svc.URLFor("issue", issueID, "comment")
 	b, err := json.Marshal(JSONCommentBody{Body: body}) //, Visibility: JIRAVisibility{Type: "role", Value: "Administrators"}})
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, "POST", URL.String(), bytes.NewReader(b))
+	req, err := svc.NewRequest(ctx, "POST", URL, b)
 	if err != nil {
 		return err
 	}
@@ -848,7 +872,7 @@ func (svc *Jira) IssueAddAttachment(ctx context.Context, issueID, fileName, mime
 	if err := mw.Close(); err != nil {
 		return err
 	}
-	URL := svc.URL.JoinPath("/issue/" + url.PathEscape(issueID) + "/attachments")
+	URL := svc.URLFor("issue", issueID, "attachments")
 	req, err := http.NewRequestWithContext(ctx, "POST", URL.String(), bytes.NewReader(buf.Bytes()))
 	if err != nil {
 		return err
