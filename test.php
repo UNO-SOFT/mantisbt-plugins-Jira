@@ -26,7 +26,7 @@ function create_issue_service(
 		//'personalAccessToken' => $p_token,
 		'useV3RestApi' => false,
 		'cookieAuthEnabled' => false,
-		//'cookieFile' => './jira-cookie.txt',
+		'cookieFile' => './jira-cookie.txt',
 
 		'curlOptVerbose' => true,
 	);
@@ -69,6 +69,7 @@ $svc = create_issue_service(
 	p_svc_password: getenv('SVC_PASSWORD'), 
 	p_api_uri: '',
 );
-$svc->get('INCIDENT-6500', array() );
+//echo "search: " . var_dump($svc->search("1=1"));
+$svc->get('INCIDENT-6508', array() );
 
 // vim: set noet shiftwidth=4:
