@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"strconv"
@@ -25,6 +27,16 @@ type Jira struct {
 	HTTPClient *http.Client
 }
 
+type JIRAIssueType struct {
+	Self        string `json:"self"`
+	ID          string `json:"id"`
+	Description string `json:"description"`
+	IconURL     string `json:"iconUrl"`
+	Name        string `json:"name"`
+	Subtask     bool   `json:"subtask"`
+	AvatarID    int    `json:"avatarId"`
+}
+
 // https://mholt.github.io/json-to-go/
 type JIRAIssue struct {
 	Expand string `json:"expand"`
@@ -37,23 +49,9 @@ type JIRAIssue struct {
 		LastViewed                    string        `json:"lastViewed"`
 		Aggregatetimeoriginalestimate interface{}   `json:"aggregatetimeoriginalestimate"`
 		Issuelinks                    []interface{} `json:"issuelinks"`
-		Assignee                      struct {
-			Self         string `json:"self"`
-			Name         string `json:"name"`
-			Key          string `json:"key"`
-			EmailAddress string `json:"emailAddress"`
-			AvatarUrls   struct {
-				Four8X48  string `json:"48x48"`
-				Two4X24   string `json:"24x24"`
-				One6X16   string `json:"16x16"`
-				Three2X32 string `json:"32x32"`
-			} `json:"avatarUrls"`
-			DisplayName string `json:"displayName"`
-			Active      bool   `json:"active"`
-			TimeZone    string `json:"timeZone"`
-		} `json:"assignee"`
-		Customfield10600 interface{} `json:"customfield_10600"`
-		Subtasks         []struct {
+		Assignee                      JIRAUser      `json:"assignee"`
+		Customfield10600              interface{}   `json:"customfield_10600"`
+		Subtasks                      []struct {
 			ID     string `json:"id"`
 			Key    string `json:"key"`
 			Self   string `json:"self"`
@@ -79,15 +77,7 @@ type JIRAIssue struct {
 					Name    string `json:"name"`
 					ID      string `json:"id"`
 				} `json:"priority"`
-				Issuetype struct {
-					Self        string `json:"self"`
-					ID          string `json:"id"`
-					Description string `json:"description"`
-					IconURL     string `json:"iconUrl"`
-					Name        string `json:"name"`
-					Subtask     bool   `json:"subtask"`
-					AvatarID    int    `json:"avatarId"`
-				} `json:"issuetype"`
+				IssueType JIRAIssueType `json:"issuetype"`
 			} `json:"fields"`
 		} `json:"subtasks"`
 		Customfield11800 interface{} `json:"customfield_11800"`
@@ -102,23 +92,15 @@ type JIRAIssue struct {
 			Total      int           `json:"total"`
 			Worklogs   []interface{} `json:"worklogs"`
 		} `json:"worklog"`
-		Issuetype struct {
-			Self        string `json:"self"`
-			ID          string `json:"id"`
-			Description string `json:"description"`
-			IconURL     string `json:"iconUrl"`
-			Name        string `json:"name"`
-			Subtask     bool   `json:"subtask"`
-			AvatarID    int    `json:"avatarId"`
-		} `json:"issuetype"`
-		Customfield15150 interface{} `json:"customfield_15150"`
-		Customfield15151 interface{} `json:"customfield_15151"`
-		Customfield15154 interface{} `json:"customfield_15154"`
-		Customfield15152 interface{} `json:"customfield_15152"`
-		Customfield15153 interface{} `json:"customfield_15153"`
-		Customfield15156 interface{} `json:"customfield_15156"`
-		Customfield11901 interface{} `json:"customfield_11901"`
-		Customfield15140 interface{} `json:"customfield_15140"`
+		IssueType        JIRAIssueType `json:"issuetype"`
+		Customfield15150 interface{}   `json:"customfield_15150"`
+		Customfield15151 interface{}   `json:"customfield_15151"`
+		Customfield15154 interface{}   `json:"customfield_15154"`
+		Customfield15152 interface{}   `json:"customfield_15152"`
+		Customfield15153 interface{}   `json:"customfield_15153"`
+		Customfield15156 interface{}   `json:"customfield_15156"`
+		Customfield11901 interface{}   `json:"customfield_11901"`
+		Customfield15140 interface{}   `json:"customfield_15140"`
 		Customfield15143 struct {
 			Self     string `json:"self"`
 			Value    string `json:"value"`
@@ -198,77 +180,63 @@ type JIRAIssue struct {
 		Customfield14805      interface{} `json:"customfield_14805"`
 		Customfield14806      interface{} `json:"customfield_14806"`
 		Customfield14809      interface{} `json:"customfield_14809"`
-		Creator               struct {
-			Self         string `json:"self"`
-			Name         string `json:"name"`
-			Key          string `json:"key"`
-			EmailAddress string `json:"emailAddress"`
-			AvatarUrls   struct {
-				Four8X48  string `json:"48x48"`
-				Two4X24   string `json:"24x24"`
-				One6X16   string `json:"16x16"`
-				Three2X32 string `json:"32x32"`
-			} `json:"avatarUrls"`
-			DisplayName string `json:"displayName"`
-			Active      bool   `json:"active"`
-			TimeZone    string `json:"timeZone"`
-		} `json:"creator"`
-		Customfield14800   interface{} `json:"customfield_14800"`
-		Customfield12615   interface{} `json:"customfield_12615"`
-		Timespent          interface{} `json:"timespent"`
-		Aggregatetimespent interface{} `json:"aggregatetimespent"`
-		Customfield11401   interface{} `json:"customfield_11401"`
-		Customfield11400   interface{} `json:"customfield_11400"`
-		Customfield14902   interface{} `json:"customfield_14902"`
-		Customfield14903   interface{} `json:"customfield_14903"`
-		Customfield14900   interface{} `json:"customfield_14900"`
-		Customfield14901   interface{} `json:"customfield_14901"`
-		Customfield14904   interface{} `json:"customfield_14904"`
-		Workratio          int         `json:"workratio"`
-		Customfield10300   string      `json:"customfield_10300"`
-		Customfield10301   interface{} `json:"customfield_10301"`
-		Customfield12712   interface{} `json:"customfield_12712"`
-		Customfield13801   interface{} `json:"customfield_13801"`
-		Customfield12711   interface{} `json:"customfield_12711"`
-		Customfield13803   interface{} `json:"customfield_13803"`
-		Customfield13802   interface{} `json:"customfield_13802"`
-		Customfield13804   interface{} `json:"customfield_13804"`
-		Customfield11500   interface{} `json:"customfield_11500"`
-		Customfield12710   interface{} `json:"customfield_12710"`
-		Customfield12705   interface{} `json:"customfield_12705"`
-		Customfield12704   interface{} `json:"customfield_12704"`
-		Customfield12707   interface{} `json:"customfield_12707"`
-		Customfield12706   interface{} `json:"customfield_12706"`
-		Customfield12709   interface{} `json:"customfield_12709"`
-		Customfield12708   interface{} `json:"customfield_12708"`
-		Customfield12811   interface{} `json:"customfield_12811"`
-		Customfield12810   interface{} `json:"customfield_12810"`
-		Customfield14311   interface{} `json:"customfield_14311"`
-		Customfield14432   interface{} `json:"customfield_14432"`
-		Customfield14433   interface{} `json:"customfield_14433"`
-		Customfield15401   interface{} `json:"customfield_15401"`
-		Customfield14430   interface{} `json:"customfield_14430"`
-		Customfield14310   interface{} `json:"customfield_14310"`
-		Customfield14431   interface{} `json:"customfield_14431"`
-		Customfield14315   interface{} `json:"customfield_14315"`
-		Customfield14437   interface{} `json:"customfield_14437"`
-		Customfield15402   interface{} `json:"customfield_15402"`
-		Customfield14435   interface{} `json:"customfield_14435"`
-		Customfield14308   interface{} `json:"customfield_14308"`
-		Customfield14429   interface{} `json:"customfield_14429"`
-		Customfield14309   interface{} `json:"customfield_14309"`
-		Customfield14306   interface{} `json:"customfield_14306"`
-		Customfield14427   interface{} `json:"customfield_14427"`
-		Customfield14307   interface{} `json:"customfield_14307"`
-		Customfield14428   interface{} `json:"customfield_14428"`
-		Customfield14300   interface{} `json:"customfield_14300"`
-		Customfield12000   interface{} `json:"customfield_12000"`
-		Customfield14421   string      `json:"customfield_14421"`
-		Customfield14301   interface{} `json:"customfield_14301"`
-		Customfield14422   interface{} `json:"customfield_14422"`
-		Customfield14420   interface{} `json:"customfield_14420"`
-		Customfield14304   interface{} `json:"customfield_14304"`
-		Customfield14425   struct {
+		Creator               JIRAUser    `json:"creator"`
+		Customfield14800      interface{} `json:"customfield_14800"`
+		Customfield12615      interface{} `json:"customfield_12615"`
+		Timespent             interface{} `json:"timespent"`
+		Aggregatetimespent    interface{} `json:"aggregatetimespent"`
+		Customfield11401      interface{} `json:"customfield_11401"`
+		Customfield11400      interface{} `json:"customfield_11400"`
+		Customfield14902      interface{} `json:"customfield_14902"`
+		Customfield14903      interface{} `json:"customfield_14903"`
+		Customfield14900      interface{} `json:"customfield_14900"`
+		Customfield14901      interface{} `json:"customfield_14901"`
+		Customfield14904      interface{} `json:"customfield_14904"`
+		Workratio             int         `json:"workratio"`
+		Customfield10300      string      `json:"customfield_10300"`
+		Customfield10301      interface{} `json:"customfield_10301"`
+		Customfield12712      interface{} `json:"customfield_12712"`
+		Customfield13801      interface{} `json:"customfield_13801"`
+		Customfield12711      interface{} `json:"customfield_12711"`
+		Customfield13803      interface{} `json:"customfield_13803"`
+		Customfield13802      interface{} `json:"customfield_13802"`
+		Customfield13804      interface{} `json:"customfield_13804"`
+		Customfield11500      interface{} `json:"customfield_11500"`
+		Customfield12710      interface{} `json:"customfield_12710"`
+		Customfield12705      interface{} `json:"customfield_12705"`
+		Customfield12704      interface{} `json:"customfield_12704"`
+		Customfield12707      interface{} `json:"customfield_12707"`
+		Customfield12706      interface{} `json:"customfield_12706"`
+		Customfield12709      interface{} `json:"customfield_12709"`
+		Customfield12708      interface{} `json:"customfield_12708"`
+		Customfield12811      interface{} `json:"customfield_12811"`
+		Customfield12810      interface{} `json:"customfield_12810"`
+		Customfield14311      interface{} `json:"customfield_14311"`
+		Customfield14432      interface{} `json:"customfield_14432"`
+		Customfield14433      interface{} `json:"customfield_14433"`
+		Customfield15401      interface{} `json:"customfield_15401"`
+		Customfield14430      interface{} `json:"customfield_14430"`
+		Customfield14310      interface{} `json:"customfield_14310"`
+		Customfield14431      interface{} `json:"customfield_14431"`
+		Customfield14315      interface{} `json:"customfield_14315"`
+		Customfield14437      interface{} `json:"customfield_14437"`
+		Customfield15402      interface{} `json:"customfield_15402"`
+		Customfield14435      interface{} `json:"customfield_14435"`
+		Customfield14308      interface{} `json:"customfield_14308"`
+		Customfield14429      interface{} `json:"customfield_14429"`
+		Customfield14309      interface{} `json:"customfield_14309"`
+		Customfield14306      interface{} `json:"customfield_14306"`
+		Customfield14427      interface{} `json:"customfield_14427"`
+		Customfield14307      interface{} `json:"customfield_14307"`
+		Customfield14428      interface{} `json:"customfield_14428"`
+		Customfield14300      interface{} `json:"customfield_14300"`
+		Customfield12000      interface{} `json:"customfield_12000"`
+		Customfield14421      string      `json:"customfield_14421"`
+		Customfield14301      interface{} `json:"customfield_14301"`
+		Customfield14422      interface{} `json:"customfield_14422"`
+		Customfield14420      interface{} `json:"customfield_14420"`
+		Customfield14304      interface{} `json:"customfield_14304"`
+		Customfield14425      struct {
 			Self     string `json:"self"`
 			Value    string `json:"value"`
 			ID       string `json:"id"`
@@ -311,21 +279,7 @@ type JIRAIssue struct {
 		Customfield10041 interface{} `json:"customfield_10041"`
 		Customfield10042 interface{} `json:"customfield_10042"`
 		Customfield14400 interface{} `json:"customfield_14400"`
-		Reporter         struct {
-			Self         string `json:"self"`
-			Name         string `json:"name"`
-			Key          string `json:"key"`
-			EmailAddress string `json:"emailAddress"`
-			AvatarUrls   struct {
-				Four8X48  string `json:"48x48"`
-				Two4X24   string `json:"24x24"`
-				One6X16   string `json:"16x16"`
-				Three2X32 string `json:"32x32"`
-			} `json:"avatarUrls"`
-			DisplayName string `json:"displayName"`
-			Active      bool   `json:"active"`
-			TimeZone    string `json:"timeZone"`
-		} `json:"reporter"`
+		Reporter         JIRAUser    `json:"reporter"`
 		Customfield10043 interface{} `json:"customfield_10043"`
 		Customfield10044 interface{} `json:"customfield_10044"`
 		Customfield14640 interface{} `json:"customfield_14640"`
@@ -363,12 +317,6 @@ type JIRAIssue struct {
 			Key            string `json:"key"`
 			Name           string `json:"name"`
 			ProjectTypeKey string `json:"projectTypeKey"`
-			AvatarUrls     struct {
-				Four8X48  string `json:"48x48"`
-				Two4X24   string `json:"24x24"`
-				One6X16   string `json:"16x16"`
-				Three2X32 string `json:"32x32"`
-			} `json:"avatarUrls"`
 		} `json:"project"`
 		Customfield10032 interface{} `json:"customfield_10032"`
 		Customfield10033 interface{} `json:"customfield_10033"`
@@ -506,21 +454,7 @@ type JIRAIssue struct {
 		Customfield14606 interface{} `json:"customfield_14606"`
 		Customfield10007 interface{} `json:"customfield_10007"`
 		Customfield14603 interface{} `json:"customfield_14603"`
-		Customfield10008 []struct {
-			Self         string `json:"self"`
-			Name         string `json:"name"`
-			Key          string `json:"key"`
-			EmailAddress string `json:"emailAddress"`
-			AvatarUrls   struct {
-				Four8X48  string `json:"48x48"`
-				Two4X24   string `json:"24x24"`
-				One6X16   string `json:"16x16"`
-				Three2X32 string `json:"32x32"`
-			} `json:"avatarUrls"`
-			DisplayName string `json:"displayName"`
-			Active      bool   `json:"active"`
-			TimeZone    string `json:"timeZone"`
-		} `json:"customfield_10008"`
+		Customfield10008 []JIRAUser  `json:"customfield_10008"`
 		Customfield14604 interface{} `json:"customfield_14604"`
 		Customfield10009 struct {
 			Links struct {
@@ -538,17 +472,6 @@ type JIRAIssue struct {
 				HelpText      string   `json:"helpText"`
 				ServiceDeskID string   `json:"serviceDeskId"`
 				GroupIds      []string `json:"groupIds"`
-				Icon          struct {
-					ID    string `json:"id"`
-					Links struct {
-						IconUrls struct {
-							Four8X48  string `json:"48x48"`
-							Two4X24   string `json:"24x24"`
-							One6X16   string `json:"16x16"`
-							Three2X32 string `json:"32x32"`
-						} `json:"iconUrls"`
-					} `json:"_links"`
-				} `json:"icon"`
 			} `json:"requestType"`
 			CurrentStatus struct {
 				Status     string `json:"status"`
@@ -779,21 +702,7 @@ type JIRAIssue struct {
 		} `json:"customfield_14321"`
 		Customfield14200 interface{} `json:"customfield_14200"`
 		Customfield14442 interface{} `json:"customfield_14442"`
-		Customfield14326 struct {
-			Self         string `json:"self"`
-			Name         string `json:"name"`
-			Key          string `json:"key"`
-			EmailAddress string `json:"emailAddress"`
-			AvatarUrls   struct {
-				Four8X48  string `json:"48x48"`
-				Two4X24   string `json:"24x24"`
-				One6X16   string `json:"16x16"`
-				Three2X32 string `json:"32x32"`
-			} `json:"avatarUrls"`
-			DisplayName string `json:"displayName"`
-			Active      bool   `json:"active"`
-			TimeZone    string `json:"timeZone"`
-		} `json:"customfield_14326"`
+		Customfield14326 JIRAUser    `json:"customfield_14326"`
 		Customfield14447 interface{} `json:"customfield_14447"`
 		Customfield14327 interface{} `json:"customfield_14327"`
 		Customfield14448 interface{} `json:"customfield_14448"`
@@ -823,7 +732,7 @@ func (svc *Jira) IssueGet(ctx context.Context, issueID string, fields []string) 
 	if err != nil {
 		return issue, err
 	}
-	resp, err := svc.Token.do(ctx, svc.HTTPClient, req)
+	resp, err := svc.Do(ctx, req)
 	logger.Info("IssueGet do", "resp", resp, "error", err)
 	if err != nil {
 		return issue, err
@@ -841,25 +750,133 @@ func (svc *Jira) IssuePut(ctx context.Context, issue JIRAIssue) error {
 	if err != nil {
 		return err
 	}
-	resp, err := svc.Token.do(ctx, svc.HTTPClient, req)
+	resp, err := svc.Do(ctx, req)
 	logger.Info("IssuePut", "resp", resp, "error", err)
 	return err
 }
 
-type JIRAComment map[string]interface{}
+type JIRAUser struct {
+	Self         string `json:"self"`
+	Name         string `json:"name"`
+	Key          string `json:"key"`
+	EmailAddress string `json:"emailAddress"`
+	DisplayName  string `json:"displayName"`
+	Active       bool   `json:"active"`
+	TimeZone     string `json:"timeZone"`
+}
+
+type JIRAVisibility struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
+}
+type JIRAComment struct {
+	Self         string         `json:"self"`
+	ID           string         `json:"id"`
+	Author       JIRAUser       `json:"author"`
+	Body         string         `json:"body"`
+	UpdateAuthor JIRAUser       `json:"updateAuthor"`
+	Created      string         `json:"created"`
+	Updated      string         `json:"updated"`
+	Visibility   JIRAVisibility `json:"visibility"`
+}
+
+type getCommentsResp struct {
+	StartAt    int32         `json:"startAt"`
+	MaxResults int32         `json:"maxResults"`
+	Total      int32         `json:"total"`
+	Comments   []JIRAComment `json:"comments"`
+}
 
 func (svc *Jira) IssueComments(ctx context.Context, issueID string) ([]JIRAComment, error) {
 	URL := svc.URL.JoinPath("/issue/" + url.PathEscape(issueID) + "/comment")
-	req, err := http.NewRequestWithContext(ctx, "GET", URL.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", URL.String()+"?startAt=0&maxResults=65536", nil)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := svc.Token.do(ctx, svc.HTTPClient, req)
+	resp, err := svc.Do(ctx, req)
 	logger.Info("IssueComments", "resp", resp, "error", err)
 	if err != nil {
 		return nil, err
 	}
-	return nil, nil
+	var comments getCommentsResp
+	err = json.Unmarshal(resp, &comments)
+	return comments.Comments, err
+}
+
+type JSONCommentBody struct {
+	Body string `json:"body"`
+	//Visibility JIRAVisibility `json:"visibility"`
+}
+
+func (svc *Jira) IssueAddComment(ctx context.Context, issueID, body string) error {
+	URL := svc.URL.JoinPath("/issue/" + url.PathEscape(issueID) + "/comment")
+	b, err := json.Marshal(JSONCommentBody{Body: body}) //, Visibility: JIRAVisibility{Type: "role", Value: "Administrators"}})
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", URL.String(), bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	resp, err := svc.Do(ctx, req)
+	logger.Info("IssueAddComment", "resp", resp, "error", err)
+	if err != nil {
+		return err
+	}
+	var comment JIRAComment
+	return json.Unmarshal(resp, &comment)
+}
+
+// IssueAddAttachment uploads the attachment to the issue.
+func (svc *Jira) IssueAddAttachment(ctx context.Context, issueID, fileName, mimeType string, body io.Reader) error {
+	// This resource expects a multipart post. The media-type multipart/form-data is defined in RFC 1867. Most client libraries have classes that make dealing with multipart posts simple. For instance, in Java the Apache HTTP Components library provides a MultiPartEntity that makes it simple to submit a multipart POST.
+	//
+	// In order to protect against XSRF attacks, because this method accepts multipart/form-data, it has XSRF protection on it. This means you must submit a header of X-Atlassian-Token: no-check with the request, otherwise it will be blocked.
+	//
+	// The name of the multipart/form-data parameter that contains attachments must be "file"
+	//
+	// curl -D- -u admin:admin -X POST -H "X-Atlassian-Token: no-check" -F "file=@myfile.txt" http://myhost/rest/api/2/issue/TEST-123/attachments
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	w, err := mw.CreateFormFile("file", fileName)
+	if err != nil {
+		return err
+	}
+	if _, err = io.Copy(w, body); err != nil {
+		return err
+	}
+	if err := mw.Close(); err != nil {
+		return err
+	}
+	URL := svc.URL.JoinPath("/issue/" + url.PathEscape(issueID) + "/attachments")
+	req, err := http.NewRequestWithContext(ctx, "POST", URL.String(), bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("X-Atlassian-Token", "no-check")
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	resp, err := svc.Do(ctx, req)
+	logger.Info("IssueAddAttachment", "resp", resp, "error", err)
+	if err != nil {
+		return err
+	}
+	attachments := make([]JIRAAttachment, 0, 1)
+	return json.Unmarshal(resp, &attachments)
+}
+
+type JIRAAttachment struct {
+	Self      string   `json:"self"`
+	Filename  string   `json:"filename"`
+	Author    JIRAUser `json:"author"`
+	Created   string   `json:"created"`
+	Size      int      `json:"size"`
+	MimeType  string   `json:"mimeType"`
+	Content   string   `json:"content"`
+	Thumbnail string   `json:"thumbnail"`
+}
+
+func (svc *Jira) Do(ctx context.Context, req *http.Request) ([]byte, error) {
+	return svc.Token.do(ctx, svc.HTTPClient, req)
 }
 
 type rawToken struct {
@@ -1020,12 +1037,26 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	*/
 	req.Header.Set("Cookie", "JSESSIONID="+t.JSessionID)
 	req.Header.Set("Authorization", "Bearer "+t.AccessToken)
+	if logger.V(1).Enabled() {
+		b, err := httputil.DumpRequestOut(req, true)
+		logger.V(1).Info("Do", "request", string(b))
+		if err != nil {
+			return nil, err
+		}
+	}
 	resp, err := httpClient.Do(req.WithContext(ctx))
 	if err != nil {
 		return nil, err
 	}
 	if resp == nil {
 		return nil, fmt.Errorf("empty response")
+	}
+	if logger.V(1).Enabled() {
+		b, err := httputil.DumpResponse(resp, true)
+		logger.V(1).Info("Do", "response", string(b))
+		if err != nil {
+			return nil, err
+		}
 	}
 	if resp.Body == nil {
 		return nil, nil

@@ -3,15 +3,18 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 
 	"github.com/peterbourgon/ff/v3"
 	"github.com/peterbourgon/ff/v3/ffcli"
@@ -37,6 +40,44 @@ func Main() error {
 	}
 	svc := Jira{HTTPClient: &client}
 
+	addAttachmentCmd := ffcli.Command{Name: "attach",
+		Exec: func(ctx context.Context, args []string) error {
+			issueID := args[0]
+			r := os.Stdin
+			if !(len(args) < 2 || args[1] == "" || args[1] == "-") {
+				var err error
+				if r, err = os.Open(args[1]); err != nil {
+					return fmt.Errorf("open %q: %w", args[1], err)
+				}
+			}
+			defer r.Close()
+			fileName := r.Name()
+			var a [1024]byte
+			n, err := r.Read(a[:])
+			if n == 0 {
+				return err
+			}
+			b := a[:n]
+			mimeType := http.DetectContentType(b)
+			return svc.IssueAddAttachment(ctx, issueID, fileName, mimeType, io.MultiReader(bytes.NewReader(b), r))
+		},
+	}
+
+	addCommentCmd := ffcli.Command{Name: "comment",
+		Exec: func(ctx context.Context, args []string) error {
+			issueID := args[0]
+			body := strings.Join(args[1:], " ")
+			if len(args) < 2 || (len(args) == 2 && (args[1] == "" || args[1] == "-")) {
+				var buf strings.Builder
+				if _, err := io.Copy(&buf, os.Stdin); err != nil {
+					return err
+				}
+				body = buf.String()
+			}
+			return svc.IssueAddComment(ctx, issueID, body)
+		},
+	}
+
 	fs := flag.NewFlagSet("jira", flag.ExitOnError)
 	flagBaseURL := fs.String("jira-base", DefaultJiraURL, "JIRA base URL (with basic auth!)")
 	fs.StringVar(&svc.Token.Username, "svc-user", "", "service user")
@@ -50,6 +91,7 @@ func Main() error {
 	}
 	fs.StringVar(&svc.Token.FileName, "token", filepath.Join(ucd, "jira-token.json"), "JIRA token file")
 	app := ffcli.Command{Name: "jira", FlagSet: fs, Options: []ff.Option{ff.WithEnvVarNoPrefix()},
+		Subcommands: []*ffcli.Command{&addAttachmentCmd, &addCommentCmd},
 		Exec: func(ctx context.Context, args []string) error {
 			if len(args) == 0 {
 				args = append(args, "INCIDENT-6508")
