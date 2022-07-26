@@ -824,7 +824,7 @@ func (svc *Jira) IssueGet(ctx context.Context, issueID string, fields []string) 
 		return issue, err
 	}
 	resp, err := svc.Token.do(ctx, svc.HTTPClient, req)
-	logger.Info("IssueGet", "resp", resp, "error", err)
+	logger.Info("IssueGet do", "resp", resp, "error", err)
 	if err != nil {
 		return issue, err
 	}
@@ -866,9 +866,9 @@ type rawToken struct {
 	JIRAError
 	JSessionID   string `json:"JSESSIONID"`
 	AccessToken  string `json:"access_token"`
-	issuedAt     string `json:"issued_at"`
-	expiresIn    string `json:"expires_in"`
-	refreshCount string `json:"refresh_count"`
+	IssuedAt     string `json:"issued_at"`
+	ExpiresIn    string `json:"expires_in"`
+	RefreshCount string `json:"refresh_count"`
 }
 
 type Token struct {
@@ -884,23 +884,44 @@ func (t *Token) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &t.rawToken); err != nil {
 		return err
 	}
-	issuedAt, err := strconv.ParseInt(t.issuedAt, 10, 64)
-	if err != nil {
-		return fmt.Errorf("parse issuedAt(%q): %w", t.issuedAt, err)
+	//logger.V(2).Info("UnmarshalJSON", "b", string(b), "raw", fmt.Sprintf("%#v", t.rawToken))
+	return t.init()
+}
+func (t *Token) init() error {
+	logger.V(2).Info("init", "raw", t.rawToken)
+	if t.rawToken.JIRAError.ErrorCode != "" {
+		return fmt.Errorf("%s: %s", t.rawToken.JIRAError.ErrorCode, t.rawToken.JIRAError.Error)
 	}
-	expiresIn, err := strconv.ParseInt(t.expiresIn, 10, 64)
-	if err != nil {
-		return fmt.Errorf("parse expiresIn(%q): %w", t.expiresIn, err)
+	if t.rawToken.Fault.Code != "" {
+		return fmt.Errorf("%s: %s", t.rawToken.Fault.Code, t.rawToken.Fault.Detail.Message)
 	}
-	t.till = time.Unix(issuedAt, 0).Add(time.Duration(expiresIn) * time.Second)
+	issuedAt, err := strconv.ParseInt(t.IssuedAt, 10, 64)
+	if err != nil {
+		return fmt.Errorf("parse issuedAt(%q): %w", t.IssuedAt, err)
+	}
+	expiresIn, err := strconv.ParseInt(t.ExpiresIn, 10, 64)
+	if err != nil {
+		return fmt.Errorf("parse expiresIn(%q): %w", t.ExpiresIn, err)
+	}
+	t.till = time.Unix(issuedAt/1000, issuedAt%1000).Add(time.Duration(expiresIn) * time.Second)
+	logger.V(2).Info("Unmarshal", "issuedAt", issuedAt, "expiresIn", expiresIn, "till", t.till)
 	return nil
 }
-func (t *Token) Valid() bool {
-	return t != nil && t.JSessionID != "" && time.Now().After(t.till)
+func (t *Token) IsValid() bool {
+	return t != nil && t.JSessionID != "" && time.Now().Before(t.till)
 }
 
 type JIRAError struct {
-	ErrorCode, Error string
+	ErrorCode string `json:",omitempty"`
+	Error     string `json:",omitempty"`
+	Fault     Fault  `json:"fault,omitempty"`
+}
+type Fault struct {
+	Code   string      `json:"faultstring,omitempty"`
+	Detail FaultDetail `json:"detail,omitempty"`
+}
+type FaultDetail struct {
+	Message string `json:"errorcode,omitempty"`
 }
 type userPass struct {
 	Username string `json:"username"`
@@ -914,23 +935,26 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	var buf bytes.Buffer
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if !t.Valid() {
+	if !t.IsValid() {
 		if t.FileName != "" {
 			if fh, err := os.Open(t.FileName); err != nil {
 				logger.Error(err, "open", "file", t.FileName)
 			} else {
-				err = json.NewDecoder(fh).Decode(&t.rawToken)
+				err = json.NewDecoder(fh).Decode(&t)
 				fh.Close()
-				if err != nil {
-					logger.Error(err, "parse", "file", fh.Name())
-				}
-				if !t.Valid() {
+				if err != nil || !t.IsValid() {
+					if err != nil {
+						logger.Error(err, "parse", "file", fh.Name())
+					} else {
+						logger.Info("not valid", "file", fh.Name())
+					}
 					_ = os.Remove(fh.Name())
 				}
 			}
 		}
 	}
-	if !t.Valid() {
+	logger.V(1).Info("IsValid", "token", t, "valid", t.IsValid())
+	if !t.IsValid() {
 		if t.Username == "" || t.Password == "" {
 			return nil, fmt.Errorf("empty JIRA username/password")
 		}
@@ -948,7 +972,7 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		if err != nil {
 			return nil, err
 		}
-		logger.Info("authenticate", "url", t.AuthURL, "body", buf.String())
+		logger.V(1).Info("authenticate", "url", t.AuthURL, "body", buf.String())
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := httpClient.Do(req.WithContext(ctx))
 		if err != nil {
@@ -963,12 +987,9 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		if err != nil {
 			return nil, err
 		}
-		logger.Info("authenticate", "response", buf.String())
-		if err = json.NewDecoder(bytes.NewReader(buf.Bytes())).Decode(&t.rawToken); err != nil {
+		logger.V(1).Info("authenticate", "response", buf.String())
+		if err = json.NewDecoder(bytes.NewReader(buf.Bytes())).Decode(&t); err != nil {
 			return nil, fmt.Errorf("decode %q: %w", buf.String(), err)
-		}
-		if t.rawToken.JIRAError.ErrorCode != "" {
-			return nil, fmt.Errorf("%s: %s", t.rawToken.JIRAError.ErrorCode, t.rawToken.JIRAError.Error)
 		}
 		if t.FileName != "" {
 			if err = renameio.WriteFile(t.FileName, buf.Bytes(), 0600); err != nil {
@@ -1013,8 +1034,12 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	_, err = io.Copy(&buf, resp.Body)
 	resp.Body.Close()
 	var jerr JIRAError
-	if err = json.Unmarshal(buf.Bytes(), &jerr); err == nil && jerr.ErrorCode != "" {
-		return nil, fmt.Errorf("%s: %s", jerr.ErrorCode, jerr.Error)
+	if err = json.Unmarshal(buf.Bytes(), &jerr); err == nil {
+		if jerr.ErrorCode != "" {
+			return nil, fmt.Errorf("%s: %s", jerr.ErrorCode, jerr.Error)
+		} else if jerr.Fault.Code != "" {
+			return nil, fmt.Errorf("%s: %s", jerr.Fault.Code, jerr.Fault.Detail.Message)
+		}
 	}
 	if resp.StatusCode >= 400 {
 		return buf.Bytes(), fmt.Errorf("%d: %s: %s", resp.StatusCode, resp.Status, buf.String())

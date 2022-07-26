@@ -43,6 +43,7 @@ func Main() error {
 	fs.StringVar(&svc.Token.Password, "svc-password", "", "service password")
 	flagBasicUser := fs.String("jira-user", "", "JIRA user")
 	flagBasicPassword := fs.String("jira-password", "", "JIRA password")
+	flagVerbose := fs.Bool("v", false, "verbose logging")
 	ucd, err := os.UserConfigDir()
 	if err != nil {
 		return err
@@ -50,6 +51,9 @@ func Main() error {
 	fs.StringVar(&svc.Token.FileName, "token", filepath.Join(ucd, "jira-token.json"), "JIRA token file")
 	app := ffcli.Command{Name: "jira", FlagSet: fs, Options: []ff.Option{ff.WithEnvVarNoPrefix()},
 		Exec: func(ctx context.Context, args []string) error {
+			if len(args) == 0 {
+				args = append(args, "INCIDENT-6508")
+			}
 			issue, err := svc.IssueGet(ctx, args[0], nil)
 			if err != nil {
 				return err
@@ -66,6 +70,9 @@ func Main() error {
 	}
 	if err := app.Parse(os.Args[1:]); err != nil {
 		return err
+	}
+	if *flagVerbose {
+		zlog.SetLevel(logger, zlog.TraceLevel)
 	}
 	if svc.URL, err = url.Parse(*flagBaseURL); err != nil {
 		return fmt.Errorf("parse %q: %w", svc.URL, err)
