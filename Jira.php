@@ -35,14 +35,37 @@ class JiraPlugin extends MantisPlugin {
 
 	function config() {
 		return array( 
-			'jira_host' => plugin_config_get( 'jira_host', '' ),
-			'jira_token' => plugin_config_get( 'jira_token', '' ),
+			'jira_host' => plugin_config_get( 'jira_host', 'https://partnerapi-uat.aegon.hu/partner/v1/ticket/update' ),
+			'jira_user' => plugin_config_get( 'jira_user', '' ),
+			'jira_password' => plugin_config_get( 'jira_password', '' ),
 		);
 	}
 
 	function hooks() {
+        // https://mantisbt.org/docs/master/en-US/Developers_Guide/html-desktop/#dev.eventref
 		return array(
+			/*
+    EVENT_UPDATE_BUG (Execute)
+
+        This event allows plugins to perform post-processing of the bug data structure after being updated.
+
+        Parameters
+
+            <Complex>: Original bug data structure (see core/bug_api.php)
+            <Complex>: Updated bug data structure (see core/bug_api.php) 
+			*/
 			'EVENT_UPDATE_BUG' => 'update_bug',
+			/*
+    EVENT_BUGNOTE_ADD (Execute)
+
+        This event allows plugins to do post-processing of bugnotes added to an issue.
+
+        Parameters
+
+            <Integer>: (Key = 0) Bug ID
+            <Integer>: (Key = 1) Bugnote ID
+            <array>: (Key = "files") Files info (name, size, id), starting 2.23.0 
+			*/
 			'EVENT_BUGNOTE_ADD' => 'bugnote_add',
 		);
 	}
@@ -55,15 +78,13 @@ class JiraPlugin extends MantisPlugin {
 	function bugnote_add( $p_event_name, $p_bug_id ) {
 		$t_bugnote_id = bugnote_get_latest_id( $p_bug_id );
 		$t_bugnote = bugnote_get( $t_bugnote_id );
+		$t_issueid = ;
 		if( VS_PUBLIC == $t_bugnote->view_state ) {
-			$conf = $this->config();
-			$iss = create_issue_service($conf['jira_host'], $conf['jira_token']);
 			if( strlen($t_bugnote->note) !== 0 ) {
-				$iss->addComment($issueKey, jira_new_comment($t_bugnote->note));
+				$this->call("comment", $t_issueid, $t_bugnote->note);
 			}
 			$t_tempdir = sys_get_temp_dir();
 			$t_attachments = file_get_visible_attachments( $p_bug_id );
-			$t_files = array();
 			foreach( $t_attachments as $t_file ) {
 				if( $t_file['download_url'] && $t_file['diskfile'] && $t_file['bugnote_id'] == $t_bugnote_id ) {
 					$t_bn = basename($t_file['display_name']);
@@ -73,18 +94,31 @@ class JiraPlugin extends MantisPlugin {
 					} else {
 						$t_ext = '';
 					}
-					$t_files[] = secure_named_symlink('', $t_file['diskfile'], $t_file['display_name']);
-				}
-			}
-			if( count($t_files) != 0 ) {
-				$iss->addAttachment($issueKey, jira_new_attachments($t_files));
-				foreach( $t_files as $t_file ) {
-					if( file_exists($t_file) && filetype($t_file) == 'link' ) {
-						unlink($t_file);
+					$t_tmpfn = secure_named_symlink('', $t_file['diskfile'], $t_file['display_name']);
+					$this->call( "attach", $t_issueid, $t_tmpfn );
+					if( file_exists($t_tmpfn) && filetype($t_tmpfn) == 'link' ) {
+						unlink($t_tmpfn);
 					}
 				}
 			}
 		}
+	}
+
+	function call( $p_subcommand, $p_issueid, $p_arg ) {
+		$t_conf = this->config();
+		$t_rc = 0;
+		exec( 
+			"mantisbt-jira" . 
+			" -jira-base=" . escapeshellarg($t_conf['jira_host']) .
+			" -jira-user=" . escapeshellarg($t_conf['jira_user']) .
+			" -jira-password=" . escapeshellarg($t_conf['jira_password']) .
+			" " . escapeshellarg($p_subcommand) . 
+			" " . escapeshellarg($p_issueid) . 
+			" " . escapeshellarg($p_arg),
+			null,
+			$t_rc
+		);
+		return($t_rc == 0);
 	}
 
 }
