@@ -23,13 +23,13 @@ class JiraPlugin extends MantisPlugin {
 
 	function register() {
 		$this->name = 'Jira';	# Proper name of plugin
-		$this->description = 'Jira syncrhonization';	# Short description of the plugin
+		$this->description = 'Jira synchronization';	# Short description of the plugin
 		$this->page = '';		   # Default plugin page
 
 		$this->version = '0.0.1';	 # Plugin version string
 		$this->requires = array(	# Plugin dependencies, array of basename => version pairs
 			'MantisCore' => '2.0.0'
-			);
+		);
 
 		$this->author = 'Tamás Gulácsi';		 # Author/team name
 		$this->contact = 'T.Gulacsi@unosoft.hu';		# Author/team e-mail address
@@ -47,35 +47,12 @@ class JiraPlugin extends MantisPlugin {
 	function hooks() {
         // https://mantisbt.org/docs/master/en-US/Developers_Guide/html-desktop/#dev.eventref
 		return array(
-			/*
-    EVENT_UPDATE_BUG (Execute)
-
-        This event allows plugins to perform post-processing of the bug data structure after being updated.
-
-        Parameters
-
-            <Complex>: Original bug data structure (see core/bug_api.php)
-            <Complex>: Updated bug data structure (see core/bug_api.php) 
-			*/
 			'EVENT_UPDATE_BUG' => 'update_bug',
-			/*
-    EVENT_BUGNOTE_ADD (Execute)
-
-        This event allows plugins to do post-processing of bugnotes added to an issue.
-
-        Parameters
-
-            <Integer>: (Key = 0) Bug ID
-            <Integer>: (Key = 1) Bugnote ID
-            <array>: (Key = "files") Files info (name, size, id), starting 2.23.0 
-			*/
 			'EVENT_BUGNOTE_ADD' => 'bugnote_add',
 		);
 	}
 
 	function update_bug( $p_event_name, $p_bug_id ) {
-		//$conf = $this->config();
-		//$iss = create_issue_service($conf['jira_host'], $conf['jira_token']);
 	}
 
 	function bugnote_add( $p_event_name, $p_bug_id ) {
@@ -117,8 +94,9 @@ class JiraPlugin extends MantisPlugin {
 	}
 
 	function call( $p_subcommand, $p_issueid, $p_arg ) {
-		$t_conf = this->config();
+		$t_conf = $this->config();
 		$t_rc = 0;
+		$t_output = null;
 		exec( 
 			"mantisbt-jira" . 
 			" -jira-base=" . escapeshellarg($t_conf['jira_host']) .
@@ -127,10 +105,10 @@ class JiraPlugin extends MantisPlugin {
 			" " . escapeshellarg($p_subcommand) . 
 			" " . escapeshellarg($p_issueid) . 
 			" " . escapeshellarg($p_arg),
-			null,
+			$t_output,
 			$t_rc
 		);
-		return($t_rc == 0);
+		return $t_rc == 0;
 	}
 
 }

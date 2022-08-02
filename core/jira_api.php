@@ -8,7 +8,7 @@ function create_issue_service(
 	string $p_host, 
 	string $p_jira_user, string $p_jira_password, 
 	string $p_svc_user, string $p_svc_password,
-	string $p_api_uri = null,
+	string $p_api_uri = null
 ) {
 	$config = array(
 		'jiraHost' => $p_host,
@@ -37,7 +37,7 @@ function create_issue_service(
 			'username' => $p_svc_user, 
 			'password' => $p_svc_password,
 		), JSON_UNESCAPED_UNICODE),
-		'POST',
+		'POST'
 	);
 	//echo "auth: $t_result";
 	$t_result = json_decode($t_result, true);
