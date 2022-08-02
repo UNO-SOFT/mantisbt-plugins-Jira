@@ -10,7 +10,7 @@ if ( !defined( MANTIS_CORE ) ) {
 
 require_once( MANTIS_DIR . '/core.php' );
 require_once( config_get( 'class_path' ) . 'MantisPlugin.class.php' );
-require_once( dirname(__FILE__).'/core/jira_api.php' );
+//require_once( dirname(__FILE__).'/core/jira_api.php' );
 
 require_api( 'install_helper_functions_api.php' );
 require_api( 'authentication_api.php');
@@ -37,6 +37,7 @@ class JiraPlugin extends MantisPlugin {
 	}
 
 	function config() {
+trigger_error( 'config' );
 		return array( 
 			'jira_host' => plugin_config_get( 'jira_host', 'https://partnerapi-uat.aegon.hu/partner/v1/ticket/update' ),
 			'jira_user' => plugin_config_get( 'jira_user', '' ),
@@ -46,6 +47,7 @@ class JiraPlugin extends MantisPlugin {
 
 	function hooks() {
         // https://mantisbt.org/docs/master/en-US/Developers_Guide/html-desktop/#dev.eventref
+trigger_error( ' hooks ' );
 		return array(
 			'EVENT_UPDATE_BUG' => 'update_bug',
 			'EVENT_BUGNOTE_ADD' => 'bugnote_add',
@@ -53,19 +55,23 @@ class JiraPlugin extends MantisPlugin {
 	}
 
 	function update_bug( $p_event_name, $p_bug_id ) {
+trigger_error( 'update_bug ' . $p_bug_id );
 	}
 
 	function bugnote_add( $p_event_name, $p_bug_id ) {
+trigger_error( 'bugnote_add ' . $p_bug_id );
 		if ( $this->issueid_field_id === 0 ) {
 			$this->issueid_field_id = custom_field_id_from_name( 'nyilvszám' );
 		}
 		$t_issueid = custom_field_get_value( $this->issueid_field_id, $p_bug_id );
+trigger_error( 'nyilvszam(' . $this->issueid_field_id . '): ' . $t_issueid );
 		if( !$t_issueid ) {
 			return;
 		}
 
 		$t_bugnote_id = bugnote_get_latest_id( $p_bug_id );
 		$t_bugnote = bugnote_get( $t_bugnote_id );
+trigger_error( 'bugnote ' . $t_bugnote->view_state );
 		if( VS_PUBLIC != $t_bugnote->view_state ) {
 			return;
 		}
@@ -95,19 +101,21 @@ class JiraPlugin extends MantisPlugin {
 
 	function call( $p_subcommand, $p_issueid, $p_arg ) {
 		$t_conf = $this->config();
-		$t_rc = 0;
-		$t_output = null;
-		exec( 
-			"mantisbt-jira" . 
+		$_rc = 0;
+		$t_output = array();
+		$t_args = "mantisbt-jira" . 
 			" -jira-base=" . escapeshellarg($t_conf['jira_host']) .
 			" -jira-user=" . escapeshellarg($t_conf['jira_user']) .
 			" -jira-password=" . escapeshellarg($t_conf['jira_password']) .
 			" " . escapeshellarg($p_subcommand) . 
 			" " . escapeshellarg($p_issueid) . 
-			" " . escapeshellarg($p_arg),
+			" " . escapeshellarg($p_arg);
+trigger_error('calling ' . $t_args, E_USER_WARNING );
+		exec( 
 			$t_output,
 			$t_rc
 		);
+trigger_error('got ' . $t_rc . ': ' . $t_output, E_USER_WARNING );
 		return $t_rc == 0;
 	}
 
