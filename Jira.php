@@ -14,10 +14,13 @@ require_once( dirname(__FILE__).'/core/jira_api.php' );
 
 require_api( 'install_helper_functions_api.php' );
 require_api( 'authentication_api.php');
+require_api( 'custom_field_api.php' );
 require_api( 'bugnote_api.php' );
 require_api( 'file_api.php' );
 
 class JiraPlugin extends MantisPlugin {
+	private $issueid_field_id = 4;
+
 	function register() {
 		$this->name = 'Jira';	# Proper name of plugin
 		$this->description = 'Jira syncrhonization';	# Short description of the plugin
@@ -76,29 +79,38 @@ class JiraPlugin extends MantisPlugin {
 	}
 
 	function bugnote_add( $p_event_name, $p_bug_id ) {
+		if ( $this->issueid_field_id === 0 ) {
+			$this->issueid_field_id = custom_field_id_from_name( 'nyilvszám' );
+		}
+		$t_issueid = custom_field_get_value( $this->issueid_field_id, $p_bug_id );
+		if( !$t_issueid ) {
+			return;
+		}
+
 		$t_bugnote_id = bugnote_get_latest_id( $p_bug_id );
 		$t_bugnote = bugnote_get( $t_bugnote_id );
-		$t_issueid = ;
-		if( VS_PUBLIC == $t_bugnote->view_state ) {
-			if( strlen($t_bugnote->note) !== 0 ) {
-				$this->call("comment", $t_issueid, $t_bugnote->note);
-			}
-			$t_tempdir = sys_get_temp_dir();
-			$t_attachments = file_get_visible_attachments( $p_bug_id );
-			foreach( $t_attachments as $t_file ) {
-				if( $t_file['download_url'] && $t_file['diskfile'] && $t_file['bugnote_id'] == $t_bugnote_id ) {
-					$t_bn = basename($t_file['display_name']);
-					$t_ext = strrchr($t_bn, '.');
-					if( $t_ext ) {
-						$t_bn = substr( $t_bn, 0, -strlen($t_ext) );
-					} else {
-						$t_ext = '';
-					}
-					$t_tmpfn = secure_named_symlink('', $t_file['diskfile'], $t_file['display_name']);
-					$this->call( "attach", $t_issueid, $t_tmpfn );
-					if( file_exists($t_tmpfn) && filetype($t_tmpfn) == 'link' ) {
-						unlink($t_tmpfn);
-					}
+		if( VS_PUBLIC != $t_bugnote->view_state ) {
+			return;
+		}
+
+		if( strlen($t_bugnote->note) !== 0 ) {
+			$this->call("comment", $t_issueid, $t_bugnote->note);
+		}
+		$t_tempdir = sys_get_temp_dir();
+		$t_attachments = file_get_visible_attachments( $p_bug_id );
+		foreach( $t_attachments as $t_file ) {
+			if( $t_file['download_url'] && $t_file['diskfile'] && $t_file['bugnote_id'] == $t_bugnote_id ) {
+				$t_bn = basename($t_file['display_name']);
+				$t_ext = strrchr($t_bn, '.');
+				if( $t_ext ) {
+					$t_bn = substr( $t_bn, 0, -strlen($t_ext) );
+				} else {
+					$t_ext = '';
+				}
+				$t_tmpfn = secure_named_symlink('', $t_file['diskfile'], $t_file['display_name']);
+				$this->call( "attach", $t_issueid, $t_tmpfn );
+				if( file_exists($t_tmpfn) && filetype($t_tmpfn) == 'link' ) {
+					unlink($t_tmpfn);
 				}
 			}
 		}
