@@ -1,4 +1,4 @@
-module github.com/UNO-SOFT/mantisbt-plugins-Jira/cmd/mantisbt-jira
+module github.com/UNO-SOFT/mantisbt-plugins-Jira
 
 go 1.19
 
