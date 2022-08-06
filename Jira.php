@@ -125,7 +125,7 @@ class JiraPlugin extends MantisPlugin {
 		$this->log('calling ' . $t_args );
 		// https://stackoverflow.com/questions/2320608/php-stderr-after-exec
 		$t_pipes = array();
-		$t_process = proc_open( '/usr/local/bin/mantisbt-jira', 
+		$t_process = proc_open( $t_args, 
 			array(
 				1 => array("pipe", "w"),  // stdout
 				2 => array("pipe", "w"),  // stderr
