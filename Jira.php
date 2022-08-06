@@ -1,10 +1,10 @@
 <?php
 # :vim set noet:
 
-if ( !defined( MANTIS_DIR ) ) {
+if ( !defined( 'MANTIS_DIR' ) ) {
 	define(MANTIS_DIR, dirname(__FILE__) . '/../..' );
 }
-if ( !defined( MANTIS_CORE ) ) {
+if ( !defined( 'MANTIS_CORE' ) ) {
 	define(MANTIS_CORE, MANTIS_DIR . '/core' );
 }
 
@@ -20,13 +20,21 @@ require_api( 'file_api.php' );
 
 class JiraPlugin extends MantisPlugin {
 	private $issueid_field_id = 4;
+	private $log_file = null;
+
+	function __destruct() {
+		if( $this->log_file ) {
+			fclose( $this->log_file );
+			$this->log_file = null;
+		}
+	}
 
 	function register() {
 		$this->name = 'Jira';	# Proper name of plugin
 		$this->description = 'Jira synchronization';	# Short description of the plugin
 		$this->page = '';		   # Default plugin page
 
-		$this->version = '0.0.1';	 # Plugin version string
+		$this->version = '0.0.2';	 # Plugin version string
 		$this->requires = array(	# Plugin dependencies, array of basename => version pairs
 			'MantisCore' => '2.0.0'
 		);
@@ -37,41 +45,42 @@ class JiraPlugin extends MantisPlugin {
 	}
 
 	function config() {
-trigger_error( 'config' );
 		return array( 
-			'jira_host' => plugin_config_get( 'jira_host', 'https://partnerapi-uat.aegon.hu/partner/v1/ticket/update' ),
-			'jira_user' => plugin_config_get( 'jira_user', '' ),
-			'jira_password' => plugin_config_get( 'jira_password', '' ),
+			'base' => plugin_config_get( 'base', 'https://partnerapi-uat.aegon.hu/partner/v1/ticket/update' ),
+			'user' => plugin_config_get( 'user', '' ),
+			'password' => plugin_config_get( 'password', '' )
 		);
 	}
 
 	function hooks() {
-        // https://mantisbt.org/docs/master/en-US/Developers_Guide/html-desktop/#dev.eventref
-trigger_error( ' hooks ' );
 		return array(
-			'EVENT_UPDATE_BUG' => 'update_bug',
 			'EVENT_BUGNOTE_ADD' => 'bugnote_add',
-		);
-	}
+			'EVENT_MENU_MANAGE' => 'menu_manage',
+                );
+        }
 
-	function update_bug( $p_event_name, $p_bug_id ) {
-trigger_error( 'update_bug ' . $p_bug_id );
-	}
+        function menu_manage( ) {
+
+                if ( access_get_project_level() >= MANAGER) {
+                        return array( '<a href="' . plugin_page( 'config.php' ) . '">'
+                                .  plugin_lang_get('config') . '</a>', );
+                }
+        }
 
 	function bugnote_add( $p_event_name, $p_bug_id ) {
-trigger_error( 'bugnote_add ' . $p_bug_id );
+		$this->log( 'bugnote_add(' . $p_event_name . ', ' . $p_bug_id . ')' );
 		if ( $this->issueid_field_id === 0 ) {
 			$this->issueid_field_id = custom_field_id_from_name( 'nyilvszám' );
 		}
 		$t_issueid = custom_field_get_value( $this->issueid_field_id, $p_bug_id );
-trigger_error( 'nyilvszam(' . $this->issueid_field_id . '): ' . $t_issueid );
+		$this->log( 'nyilvszam(' . $this->issueid_field_id . '): ' . $t_issueid );
 		if( !$t_issueid ) {
 			return;
 		}
 
 		$t_bugnote_id = bugnote_get_latest_id( $p_bug_id );
 		$t_bugnote = bugnote_get( $t_bugnote_id );
-trigger_error( 'bugnote ' . $t_bugnote->view_state );
+		$this->log( 'bugnote ' . $t_bugnote->view_state );
 		if( VS_PUBLIC != $t_bugnote->view_state ) {
 			return;
 		}
@@ -101,24 +110,42 @@ trigger_error( 'bugnote ' . $t_bugnote->view_state );
 
 	function call( $p_subcommand, $p_issueid, $p_arg ) {
 		$t_conf = $this->config();
-		$_rc = 0;
+		$t_args = array( '/usr/local/bin/mantisbt-jira' );
+		foreach( $t_conf as $k => $v ) {
+			if( $v ) {
+				$t_args[] = escapeshellarg( '-jira-' . $k . '=' . $v );
+			}
+		}
+		
 		$t_output = array();
-		$t_args = "mantisbt-jira" . 
-			" -jira-base=" . escapeshellarg($t_conf['jira_host']) .
-			" -jira-user=" . escapeshellarg($t_conf['jira_user']) .
-			" -jira-password=" . escapeshellarg($t_conf['jira_password']) .
-			" " . escapeshellarg($p_subcommand) . 
-			" " . escapeshellarg($p_issueid) . 
-			" " . escapeshellarg($p_arg);
-trigger_error('calling ' . $t_args, E_USER_WARNING );
-		exec( 
-			$t_output,
-			$t_rc
-		);
-trigger_error('got ' . $t_rc . ': ' . $t_output, E_USER_WARNING );
+		$t_args = implode( $t_args, ' ' ) .
+			' ' . escapeshellarg( $p_subcommand ) . 
+			' ' . escapeshellarg( $p_issueid ) . 
+			' ' . escapeshellarg( $p_arg );
+		$this->log('calling ' . $t_args );
+		// https://stackoverflow.com/questions/2320608/php-stderr-after-exec
+		$t_pipes = array();
+		$t_process = proc_open( '/usr/local/bin/mantisbt-jira', 
+			array(
+				1 => array("pipe", "w"),  // stdout
+				2 => array("pipe", "w"),  // stderr
+			),
+			$t_pipes, '/' );
+		fclose( $t_pipes[1] );
+		$t_stderr = stream_get_contents( $t_pipes[2] );
+		fclose( $t_pipes[2] );
+		$t_rc = proc_close( $t_process );
+		$this->log('got ' . $t_rc . ': stdout=' . var_export( $t_stdout, TRUE ) . ' stderr=' . var_export( $t_stderr, TRUE ) );
 		return $t_rc == 0;
 	}
 
+	function log( $p_text ) {
+		if( !$this->log_file ) {
+			$this->log_file = fopen( '/var/log/mantis/jira.log', 'a' );
+		}
+		fwrite( $this->log_file, $p_text . "\n" );
+		fflush( $this->log_file );
+	}
 }
 
 function secure_named_symlink($dir, $target, $name) {
