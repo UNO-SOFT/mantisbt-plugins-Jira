@@ -981,9 +981,12 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 			if fh, err := os.Open(t.FileName); err != nil {
 				logger.Error(err, "open", "file", t.FileName)
 			} else {
-				err = json.NewDecoder(fh).Decode(&t)
+				var t2 Token
+				err = json.NewDecoder(fh).Decode(&t2)
 				fh.Close()
-				if err != nil || !t.IsValid() {
+				if err == nil && t2.IsValid() {
+					t.AuthURL, t.Username, t.Password, t.FileName, t.till, t.rawToken = t2.AuthURL, t2.Username, t2.Password, t2.FileName, t2.till, t2.rawToken
+				} else {
 					if err != nil {
 						logger.Error(err, "parse", "file", fh.Name())
 					} else {

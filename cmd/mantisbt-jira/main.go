@@ -80,15 +80,16 @@ func Main() error {
 
 	fs := flag.NewFlagSet("jira", flag.ExitOnError)
 	flagBaseURL := fs.String("jira-base", DefaultJiraURL, "JIRA base URL (with basic auth!)")
-	fs.StringVar(&svc.Token.Username, "svc-user", "", "service user")
-	fs.StringVar(&svc.Token.Password, "svc-password", "", "service password")
-	flagBasicUser := fs.String("jira-user", "", "JIRA user")
-	flagBasicPassword := fs.String("jira-password", "", "JIRA password")
+	fs.StringVar(&svc.Token.Username, "jira-user", "", "service user")
+	fs.StringVar(&svc.Token.Password, "jira-password", "", "service password")
+	flagBasicUser := fs.String("basic-user", "", "JIRA user")
+	flagBasicPassword := fs.String("basic-password", "", "JIRA password")
 	flagVerbose := fs.Bool("v", false, "verbose logging")
 	ucd, err := os.UserConfigDir()
 	if err != nil {
 		return err
 	}
+	_ = os.MkdirAll(ucd, 0750)
 	fs.StringVar(&svc.Token.FileName, "token", filepath.Join(ucd, "jira-token.json"), "JIRA token file")
 	app := ffcli.Command{Name: "jira", FlagSet: fs, Options: []ff.Option{ff.WithEnvVarNoPrefix()},
 		Subcommands: []*ffcli.Command{&addAttachmentCmd, &addCommentCmd},
