@@ -67,8 +67,8 @@ class JiraPlugin extends MantisPlugin {
                 }
         }
 
-	function bugnote_add( $p_event_name, $p_bug_id ) {
-		$this->log( 'bugnote_add(' . $p_event_name . ', ' . $p_bug_id . ')' );
+	function bugnote_add( $p_event_name, $p_bug_id, $p_bugnote_id, $p_files ) {
+		$this->log( 'bugnote_add(' . $p_event_name . ', ' . $p_bug_id . ' bugnote_id=' . $p_bugnote_id . ' files=' . var_export( $p_files, TRUE ) . ')' );
 		if ( $this->issueid_field_id === 0 ) {
 			$this->issueid_field_id = custom_field_id_from_name( 'nyilvszám' );
 		}
@@ -78,33 +78,40 @@ class JiraPlugin extends MantisPlugin {
 			return;
 		}
 
-		$t_bugnote_id = bugnote_get_latest_id( $p_bug_id );
-		$t_bugnote = bugnote_get( $t_bugnote_id );
-		$this->log( 'bugnote ' . $t_bugnote->view_state );
-		if( VS_PUBLIC != $t_bugnote->view_state ) {
+		$t_bugnote = null;
+		if( $p_bugnote_id ) {
+			$t_bugnote = bugnote_get( $p_bugnote_id );
+		}
+		if( $t_bugnote ) {
+			$this->log( 'bugnote ' . $t_bugnote->view_state );
+			if( VS_PUBLIC != $t_bugnote->view_state ) {
+				return;
+			}
+
+$this->log( 'note length: ' .strlen( $t_bugnote->note ) );
+			if( strlen($t_bugnote->note) !== 0 ) {
+				$this->call("comment", $t_issueid, $t_bugnote->note);
+$this->log( 'comment added' );
+			}
+		}
+		if( count( $p_files ) == 0 ) {
 			return;
 		}
 
-		if( strlen($t_bugnote->note) !== 0 ) {
-			$this->call("comment", $t_issueid, $t_bugnote->note);
-		}
-		$t_tempdir = sys_get_temp_dir();
-		$t_attachments = file_get_visible_attachments( $p_bug_id );
-		foreach( $t_attachments as $t_file ) {
-			if( $t_file['download_url'] && $t_file['diskfile'] && $t_file['bugnote_id'] == $t_bugnote_id ) {
-				$t_bn = basename($t_file['display_name']);
-				$t_ext = strrchr($t_bn, '.');
-				if( $t_ext ) {
-					$t_bn = substr( $t_bn, 0, -strlen($t_ext) );
-				} else {
-					$t_ext = '';
-				}
-				$t_tmpfn = secure_named_symlink('', $t_file['diskfile'], $t_file['display_name']);
-				$this->call( "attach", $t_issueid, $t_tmpfn );
-				if( file_exists($t_tmpfn) && filetype($t_tmpfn) == 'link' ) {
-					unlink($t_tmpfn);
-				}
+		$t_project_id = bug_get_field( $p_bug_id, 'project_id' );
+		$this->log( 'project_id=' . $t_project_id);
+
+		foreach( $p_files as $t_file ) {
+			$t_diskfile = file_get_field( $t_file['id'], 'diskfile', 'bug' );
+			if( !$t_diskfile ) {
+				continue;
 			}
+			$t_local_disk_file = file_normalize_attachment_path( $t_diskfile, $t_project_id );
+			$this->log( 'file=' . var_export( $t_file, TRUE ) . ', diskfile=' . $t_diskfile . ' local_disk_file=' . $t_local_disk_file );
+			if( !$t_local_disk_file ) {
+				continue;
+			}
+			$this->call( "attach", $t_issueid, $t_local_disk_file );
 		}
 	}
 
@@ -146,41 +153,6 @@ class JiraPlugin extends MantisPlugin {
 		fwrite( $this->log_file, $p_text . "\n" );
 		fflush( $this->log_file );
 	}
-}
-
-function secure_named_symlink($dir, $target, $name) {
-	if( !(isset($dir) && is_string($dir) && $dir) ) {
-		$dir = sys_get_temp_dir();
-	}
-	$name = basename( $name );
-	$postfix = strrchr($name, '.');
-	if( $postfix ) {
-		$name = substr($name, 0, -strlen($postfix));
-	} else {
-		$postfix = '';
-	}
-
-    // find a temporary name
-    $tries = 1;
-    do {
-        // get a known, unique temporary file name
-        $sysFileName = tempnam($dir, $prefix);
-        if ($sysFileName === false) {
-            return false;
-        }
-
-        // tack on the extension
-        $newFileName = $sysFileName . $postfix;
-		$ok = symlink( $target, $name . $postfix );
-		unlink( $sysFileName );
-		if( $ok ) {
-			return $newFileName;
-        }
-
-        $tries++;
-    } while ($tries <= 5);
-
-    return false;
 }
 
 // vim: set noet:
