@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/google/renameio"
+	"github.com/klauspost/compress/gzhttp"
 )
 
 // https://partnerapi-uat.aegon.hu/partner/v1/ticket/update/openapi.json
@@ -972,6 +973,7 @@ type userPass struct {
 func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Request) ([]byte, error) {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
+		httpClient.Transport = gzhttp.Transport(httpClient.Transport)
 	}
 	var buf bytes.Buffer
 	t.mu.Lock()

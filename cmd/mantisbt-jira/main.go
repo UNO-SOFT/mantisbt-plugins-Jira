@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/klauspost/compress/gzhttp"
 	"github.com/peterbourgon/ff/v3"
 	"github.com/peterbourgon/ff/v3/ffcli"
 	"github.com/tgulacsi/go/zlog"
@@ -34,6 +35,7 @@ func main() {
 
 func Main() error {
 	client := *http.DefaultClient
+	client.Transport = gzhttp.Transport(client.Transport)
 	var err error
 	if client.Jar, err = cookiejar.New(nil); err != nil {
 		return err
