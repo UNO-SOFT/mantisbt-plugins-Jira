@@ -132,6 +132,7 @@ $this->log( 'comment added' );
 		$this->log('calling ' . $t_args );
 		// https://stackoverflow.com/questions/2320608/php-stderr-after-exec
 		$t_pipes = array();
+		// nosemgrep: php.lang.security.exec-use.exec-use
 		$t_process = proc_open( $t_args, 
 			array(
 				1 => array("pipe", "w"),  // stdout

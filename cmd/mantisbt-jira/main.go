@@ -36,10 +36,11 @@ func main() {
 func Main() error {
 	client := *http.DefaultClient
 	client.Transport = gzhttp.Transport(client.Transport)
-	var err error
-	if client.Jar, err = cookiejar.New(nil); err != nil {
+	clientJar, err := cookiejar.New(nil)
+	if err != nil {
 		return err
 	}
+	client.Jar = clientJar
 	svc := Jira{HTTPClient: &client}
 
 	addAttachmentCmd := ffcli.Command{Name: "attach",
@@ -91,6 +92,7 @@ func Main() error {
 	if err != nil {
 		return err
 	}
+	// nosemgrep: go.lang.correctness.permissions.file_permission.incorrect-default-permission
 	_ = os.MkdirAll(ucd, 0750)
 	fs.StringVar(&svc.Token.FileName, "token", filepath.Join(ucd, "jira-token.json"), "JIRA token file")
 	app := ffcli.Command{Name: "jira", FlagSet: fs, Options: []ff.Option{ff.WithEnvVarNoPrefix()},
@@ -119,9 +121,11 @@ func Main() error {
 	if *flagVerbose {
 		zlog.SetLevel(logger, zlog.TraceLevel)
 	}
-	if svc.URL, err = url.Parse(*flagBaseURL); err != nil {
-		return fmt.Errorf("parse %q: %w", svc.URL, err)
+	svcURL, err := url.Parse(*flagBaseURL)
+	if err != nil {
+		return fmt.Errorf("parse %q: %w", *flagBaseURL, err)
 	}
+	svc.URL = svcURL
 	if *flagBasicUser != "" {
 		svc.URL.User = url.UserPassword(*flagBasicUser, *flagBasicPassword)
 	}
