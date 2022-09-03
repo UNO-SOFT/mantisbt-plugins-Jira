@@ -1093,6 +1093,9 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	buf.Reset()
 	_, err = io.Copy(&buf, resp.Body)
 	resp.Body.Close()
+	if err != nil {
+		logger.Error(err, "read request")
+	}
 	var jerr JIRAError
 	if err = json.Unmarshal(buf.Bytes(), &jerr); err == nil {
 		if jerr.ErrorCode != "" {
