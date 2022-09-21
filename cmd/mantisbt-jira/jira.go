@@ -973,6 +973,9 @@ type userPass struct {
 func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Request) ([]byte, error) {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
+		if httpClient.Transport == nil {
+			httpClient.Transport = http.DefaultTransport
+		}
 		httpClient.Transport = gzhttp.Transport(httpClient.Transport)
 	}
 	var buf bytes.Buffer

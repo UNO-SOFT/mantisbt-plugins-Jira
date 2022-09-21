@@ -35,6 +35,9 @@ func main() {
 
 func Main() error {
 	client := *http.DefaultClient
+	if client.Transport == nil {
+		client.Transport = http.DefaultTransport
+	}
 	client.Transport = gzhttp.Transport(client.Transport)
 	clientJar, err := cookiejar.New(nil)
 	if err != nil {

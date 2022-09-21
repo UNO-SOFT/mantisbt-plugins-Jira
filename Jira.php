@@ -20,6 +20,7 @@ require_api( 'file_api.php' );
 
 class JiraPlugin extends MantisPlugin {
 	private $issueid_field_id = 4;
+    private $skip_reporter_id = 0;
 	private $log_file = null;
 
 	function __destruct() {
@@ -69,9 +70,12 @@ class JiraPlugin extends MantisPlugin {
 
 	function bugnote_add( $p_event_name, $p_bug_id, $p_bugnote_id, $p_files ) {
 		$this->log( 'bugnote_add(' . $p_event_name . ', ' . $p_bug_id . ' bugnote_id=' . $p_bugnote_id . ' files=' . var_export( $p_files, TRUE ) . ')' );
-		if ( $this->issueid_field_id === 0 ) {
+		if( $this->issueid_field_id === 0 ) {
 			$this->issueid_field_id = custom_field_id_from_name( 'nyilvszám' );
 		}
+        if( $this->skip_reporter_id === 0 ) {
+            $this->skip_reporter_id = user_get_id_by_name( 'jira' );
+        }
 		$t_issueid = custom_field_get_value( $this->issueid_field_id, $p_bug_id );
 		$this->log( 'nyilvszam(' . $this->issueid_field_id . '): ' . $t_issueid );
 		if( !$t_issueid ) {
@@ -87,6 +91,9 @@ class JiraPlugin extends MantisPlugin {
 			if( VS_PUBLIC != $t_bugnote->view_state ) {
 				return;
 			}
+            if( $t_bugnote->reporter_id == $this->skip_reporter_id ) {
+                return;
+            }
 
 $this->log( 'note length: ' .strlen( $t_bugnote->note ) );
 			if( strlen($t_bugnote->note) !== 0 ) {
