@@ -17,6 +17,7 @@ require_api( 'authentication_api.php');
 require_api( 'custom_field_api.php' );
 require_api( 'bugnote_api.php' );
 require_api( 'file_api.php' );
+require_api( 'database_api.php' );
 
 class JiraPlugin extends MantisPlugin {
 	private $issueid_field_id = 4;
@@ -92,6 +93,27 @@ class JiraPlugin extends MantisPlugin {
 				return;
 			}
             if( $t_bugnote->reporter_id == $this->skip_reporter_id ) {
+                // feldolg a végét
+                // <<Kiss.Balazs@aegon.hu>>
+                $matches = array();
+                if( preg_match('/<<([^>@]+@[^>]*)>>/', $t_bugnote->note, $matches) ) {
+                    $t_uid = user_get_id_by_email( $matches[1] );
+                    if( !$t_uid ) {
+                        $t_uid = user_get_id_by_email( strtolower( $matches[1] ) );
+                    }
+$this->log( 'email: ' . var_export( $matches, TRUE ) . ' uid=' . $t_uid );
+                    if( $t_uid ) {
+                        $t_bugnote->reporter_id = $t_uid;
+                        db_param_push();
+                        $t_query = 'UPDATE {bugnote} SET reporter_id = ' . db_param() . ' WHERE bugnote_text_id = ' . db_param();
+                        db_query( $t_query, array( $t_uid, $t_bugnote->bugnote_text_id ) );
+                        db_param_push();
+
+                        $t_bugnote->note = str_replace( $matches[0], '', $t_bugnote->note );
+                        $t_query = 'UPDATE {bugnote_text} SET note = ' . db_param() . ' WHERE id = ' . db_param();
+                        db_query( $t_query, array( $t_bugnote->note, $t_bugnote->bugnote_text_id ) );
+                    }
+                }
                 return;
             }
 
