@@ -24,6 +24,8 @@ import (
 
 var logger = zlog.New(os.Stderr)
 
+// https://partnerapi-uat.aegon.hu/partner/v1/ticket/update/openapi.json
+
 const DefaultJiraURL = "https://partnerapi-uat.aegon.hu/partner/v1/ticket/update"
 
 func main() {

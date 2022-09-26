@@ -21,7 +21,7 @@ require_api( 'database_api.php' );
 
 class JiraPlugin extends MantisPlugin {
 	private $issueid_field_id = 4;
-    private $skip_reporter_id = 0;
+	private $skip_reporter_id = 0;
 	private $log_file = null;
 
 	function __destruct() {
@@ -57,26 +57,26 @@ class JiraPlugin extends MantisPlugin {
 	function hooks() {
 		return array(
 			'EVENT_BUGNOTE_ADD' => 'bugnote_add',
+			//'EVENT_BUGNOTE_EDIT' => 'bugnote_edit',
 			'EVENT_MENU_MANAGE' => 'menu_manage',
-                );
-        }
+		);
+	}
 
-        function menu_manage( ) {
-
-                if ( access_get_project_level() >= MANAGER) {
-                        return array( '<a href="' . plugin_page( 'config.php' ) . '">'
-                                .  plugin_lang_get('config') . '</a>', );
-                }
-        }
+	function menu_manage( ) {
+			if ( access_get_project_level() >= MANAGER) {
+					return array( '<a href="' . plugin_page( 'config.php' ) . '">'
+							.  plugin_lang_get('config') . '</a>', );
+			}
+	}
 
 	function bugnote_add( $p_event_name, $p_bug_id, $p_bugnote_id, $p_files ) {
 		$this->log( 'bugnote_add(' . $p_event_name . ', ' . $p_bug_id . ' bugnote_id=' . $p_bugnote_id . ' files=' . var_export( $p_files, TRUE ) . ')' );
 		if( $this->issueid_field_id === 0 ) {
 			$this->issueid_field_id = custom_field_id_from_name( 'nyilvszám' );
 		}
-        if( $this->skip_reporter_id === 0 ) {
-            $this->skip_reporter_id = user_get_id_by_name( 'jira' );
-        }
+		if( $this->skip_reporter_id === 0 ) {
+			$this->skip_reporter_id = user_get_id_by_name( 'jira' );
+		}
 		$t_issueid = custom_field_get_value( $this->issueid_field_id, $p_bug_id );
 		$this->log( 'nyilvszam(' . $this->issueid_field_id . '): ' . $t_issueid );
 		if( !$t_issueid ) {
@@ -92,30 +92,30 @@ class JiraPlugin extends MantisPlugin {
 			if( VS_PUBLIC != $t_bugnote->view_state ) {
 				return;
 			}
-            if( $t_bugnote->reporter_id == $this->skip_reporter_id ) {
-                // feldolg a végét
-                // <<Kiss.Balazs@aegon.hu>>
-                $matches = array();
-                if( preg_match('/<<([^>@]+@[^>]*)>>/', $t_bugnote->note, $matches) ) {
-                    $t_uid = user_get_id_by_email( $matches[1] );
-                    if( !$t_uid ) {
-                        $t_uid = user_get_id_by_email( strtolower( $matches[1] ) );
-                    }
+			if( $t_bugnote->reporter_id == $this->skip_reporter_id ) {
+				// feldolg a végét
+				// <<Kiss.Balazs@aegon.hu>>
+				$matches = array();
+				if( preg_match('/<<([^>@]+@[^>]*)>>/', $t_bugnote->note, $matches) ) {
+					$t_uid = user_get_id_by_email( $matches[1] );
+					if( !$t_uid ) {
+						$t_uid = user_get_id_by_email( strtolower( $matches[1] ) );
+					}
 $this->log( 'email: ' . var_export( $matches, TRUE ) . ' uid=' . $t_uid );
-                    if( $t_uid ) {
-                        $t_bugnote->reporter_id = $t_uid;
-                        db_param_push();
-                        $t_query = 'UPDATE {bugnote} SET reporter_id = ' . db_param() . ' WHERE bugnote_text_id = ' . db_param();
-                        db_query( $t_query, array( $t_uid, $t_bugnote->bugnote_text_id ) );
-                        db_param_push();
+					if( $t_uid ) {
+						$t_bugnote->reporter_id = $t_uid;
+						db_param_push();
+						$t_query = 'UPDATE {bugnote} SET reporter_id = ' . db_param() . ' WHERE bugnote_text_id = ' . db_param();
+						db_query( $t_query, array( $t_uid, $t_bugnote->bugnote_text_id ) );
+						db_param_push();
 
-                        $t_bugnote->note = str_replace( $matches[0], '', $t_bugnote->note );
-                        $t_query = 'UPDATE {bugnote_text} SET note = ' . db_param() . ' WHERE id = ' . db_param();
-                        db_query( $t_query, array( $t_bugnote->note, $t_bugnote->bugnote_text_id ) );
-                    }
-                }
-                return;
-            }
+						$t_bugnote->note = str_replace( $matches[0], '', $t_bugnote->note );
+						$t_query = 'UPDATE {bugnote_text} SET note = ' . db_param() . ' WHERE id = ' . db_param();
+						db_query( $t_query, array( $t_bugnote->note, $t_bugnote->bugnote_text_id ) );
+					}
+				}
+				return;
+			}
 
 $this->log( 'note length: ' .strlen( $t_bugnote->note ) );
 			if( strlen($t_bugnote->note) !== 0 ) {
