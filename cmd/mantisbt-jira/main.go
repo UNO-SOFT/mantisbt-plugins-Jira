@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/klauspost/compress/gzhttp"
 	"github.com/peterbourgon/ff/v3"
@@ -26,6 +27,7 @@ var logger = zlog.New(os.Stderr)
 
 // https://partnerapi-uat.aegon.hu/partner/v1/ticket/update/openapi.json
 
+// DefaultJiraURL is the default JIRA URL
 const DefaultJiraURL = "https://partnerapi-uat.aegon.hu/partner/v1/ticket/update"
 
 func main() {
@@ -35,6 +37,7 @@ func main() {
 	}
 }
 
+// Main is the main function
 func Main() error {
 	client := *http.DefaultClient
 	if client.Transport == nil {
@@ -48,7 +51,10 @@ func Main() error {
 	client.Jar = clientJar
 	svc := Jira{HTTPClient: &client}
 
+	fs := flag.NewFlagSet("attach", flag.ContinueOnError)
+	flagAttachFileName := fs.String("filename", "", "override file name")
 	addAttachmentCmd := ffcli.Command{Name: "attach",
+		FlagSet: fs,
 		Exec: func(ctx context.Context, args []string) error {
 			issueID := args[0]
 			r := os.Stdin
@@ -59,14 +65,19 @@ func Main() error {
 				}
 			}
 			defer r.Close()
-			fileName := r.Name()
+			fileName := *flagAttachFileName
+			if fileName == "" {
+				fileName = r.Name()
+			}
 			var a [1024]byte
 			n, err := r.Read(a[:])
 			if n == 0 {
+				logger.Error(err, "read", "file", r)
 				return err
 			}
 			b := a[:n]
 			mimeType := http.DetectContentType(b)
+			logger.Info("IssueAddAttachment", "issueID", issueID, "fileName", fileName, "mimeType", mimeType)
 			return svc.IssueAddAttachment(ctx, issueID, fileName, mimeType, io.MultiReader(bytes.NewReader(b), r))
 		},
 	}
@@ -86,10 +97,11 @@ func Main() error {
 		},
 	}
 
-	fs := flag.NewFlagSet("jira", flag.ExitOnError)
+	fs = flag.NewFlagSet("jira", flag.ContinueOnError)
 	flagBaseURL := fs.String("jira-base", DefaultJiraURL, "JIRA base URL (with basic auth!)")
 	fs.StringVar(&svc.Token.Username, "jira-user", "", "service user")
 	fs.StringVar(&svc.Token.Password, "jira-password", "", "service password")
+	flagTimeout := fs.Duration("timeout", 30*time.Second, "timeout")
 	flagBasicUser := fs.String("basic-user", "", "JIRA user")
 	flagBasicPassword := fs.String("basic-password", "", "JIRA password")
 	flagVerbose := fs.Bool("v", false, "verbose logging")
@@ -137,6 +149,8 @@ func Main() error {
 	svc.Token.AuthURL = svc.URL.JoinPath("auth").String()
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+	ctx, cancel = context.WithTimeout(ctx, *flagTimeout)
 	defer cancel()
 
 	return app.Run(ctx)

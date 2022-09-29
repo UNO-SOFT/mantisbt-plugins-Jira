@@ -119,7 +119,7 @@ $this->log( 'email: ' . var_export( $matches, TRUE ) . ' uid=' . $t_uid );
 
 $this->log( 'note length: ' .strlen( $t_bugnote->note ) );
 			if( strlen($t_bugnote->note) !== 0 ) {
-				$this->call("comment", $t_issueid, $t_bugnote->note);
+				$this->call("comment", array( $t_issueid, $t_bugnote->note ) );
 $this->log( 'comment added' );
 			}
 		}
@@ -140,11 +140,15 @@ $this->log( 'comment added' );
 			if( !$t_local_disk_file ) {
 				continue;
 			}
-			$this->call( "attach", $t_issueid, $t_local_disk_file );
+			$this->call( "attach", array(
+				"-filename=" . $t_file['name'], 
+				$t_issueid, 
+				$t_local_disk_file,
+			) );
 		}
 	}
 
-	function call( $p_subcommand, $p_issueid, $p_arg ) {
+	function call( $p_subcommand, $p_args ) {
 		$t_conf = $this->config();
 		$t_args = array( '/usr/local/bin/mantisbt-jira' );
 		foreach( $t_conf as $k => $v ) {
@@ -154,10 +158,10 @@ $this->log( 'comment added' );
 		}
 		
 		$t_output = array();
-		$t_args = implode( $t_args, ' ' ) .
-			' ' . escapeshellarg( $p_subcommand ) . 
-			' ' . escapeshellarg( $p_issueid ) . 
-			' ' . escapeshellarg( $p_arg );
+		$t_args = implode( $t_args, ' ' ) . ' ' . escapeshellarg( $p_subcommand );
+		foreach( $p_args as $t_arg ) {
+			$t_args .= ' ' . escapeshellarg( $t_arg );
+		}
 		$this->log('calling ' . $t_args );
 		// https://stackoverflow.com/questions/2320608/php-stderr-after-exec
 		$t_pipes = array();
