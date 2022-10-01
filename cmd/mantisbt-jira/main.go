@@ -20,7 +20,7 @@ import (
 	"github.com/klauspost/compress/gzhttp"
 	"github.com/peterbourgon/ff/v3"
 	"github.com/peterbourgon/ff/v3/ffcli"
-	"github.com/tgulacsi/go/zlog"
+	"github.com/UNO-SOFT/zlog"
 )
 
 var logger = zlog.New(os.Stderr)
