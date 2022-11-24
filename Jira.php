@@ -120,7 +120,7 @@ $this->log( 'email: ' . var_export( $matches, TRUE ) . ' uid=' . $t_uid );
 
 $this->log( 'note length: ' .strlen( $t_bugnote->note ) );
 			if( strlen($t_bugnote->note) !== 0 ) {
-				$this->call("comment", array( $t_issueid, $t_bugnote->note ) );
+				$this->call("comment", array( $t_issueid, $t_bugnote->note . "\n\n<<" . user_get_realname( $t_bugnote->reporter_id ) . '>>' ) );
 $this->log( 'comment added' );
 			}
 		}
