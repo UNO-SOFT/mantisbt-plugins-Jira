@@ -69,7 +69,8 @@ class JiraPlugin extends MantisPlugin {
 			}
 	}
 
-	function bugnote_add( $p_event_name, $p_bug_id, $p_bugnote_id, $p_files ) {
+	function bugnote_add( $p_event_name, $p_bug_id, $p_bugnote_id, $files ) {
+		$p_files = $files;
 		$this->log( 'bugnote_add(' . $p_event_name . ', ' . $p_bug_id . ' bugnote_id=' . $p_bugnote_id . ' files=' . var_export( $p_files, TRUE ) . ')' );
 		if( $this->issueid_field_id === 0 ) {
 			$this->issueid_field_id = custom_field_id_from_name( 'nyilvszám' );
@@ -158,7 +159,7 @@ $this->log( 'comment added' );
 		}
 		
 		$t_output = array();
-		$t_args = implode( $t_args, ' ' ) . ' ' . escapeshellarg( $p_subcommand );
+		$t_args = implode( ' ', $t_args ) . ' ' . escapeshellarg( $p_subcommand );
 		foreach( $p_args as $t_arg ) {
 			$t_args .= ' ' . escapeshellarg( $t_arg );
 		}
