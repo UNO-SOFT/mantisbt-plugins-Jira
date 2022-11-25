@@ -24,9 +24,9 @@ import (
 // https://partnerapi-uat.aegon.hu/partner/v1/ticket/update/openapi.json
 type Jira struct {
 	URL        *url.URL
-	Token      Token
-	Tokens     map[string]Token
-	TokensFile string
+	token      Token
+	tokens     map[string]Token
+	tokensFile string
 	HTTPClient *http.Client
 }
 
@@ -758,32 +758,43 @@ func (svc *Jira) IssuePut(ctx context.Context, issue JIRAIssue) error {
 	logger.Info("IssuePut", "resp", resp, "error", err)
 	return err
 }
-func (svc *Jira) URLFor(typ, id, action string) *url.URL {
-	if svc.Tokens == nil && svc.TokensFile != "" {
-		if fh, err := os.Open(svc.TokensFile); err != nil {
-			logger.Error(err, "open", "file", svc.TokensFile)
-		} else {
-			var m map[string]Token
-			err = json.NewDecoder(fh).Decode(&m)
-			fh.Close()
-			if err == nil {
-				svc.Tokens = make(map[string]Token, len(m))
-				for k, v := range m {
-					if v.IsValid() {
-						svc.Tokens[k] = v
-					}
-				}
-				svc.Token = svc.Tokens[svc.URL.String()]
-			} else {
-				if err != nil {
-					logger.Error(err, "parse", "file", fh.Name())
-				} else {
-					logger.Info("not valid", "file", fh.Name())
-				}
-				_ = os.Remove(fh.Name())
+func (svc *Jira) Load(tokensFile, jiraUser, jiraPassword string) {
+	svc.token.Username, svc.token.Password = jiraUser, jiraPassword
+	if tokensFile == "" {
+		return
+	}
+	svc.tokensFile = tokensFile
+	fh, err := os.Open(tokensFile)
+	if err != nil {
+		logger.Error(err, "open", "file", tokensFile)
+		return
+	}
+	var m map[string]Token
+	err = json.NewDecoder(fh).Decode(&m)
+	fh.Close()
+	if err == nil {
+		svc.tokens = make(map[string]Token, len(m))
+		for k, v := range m {
+			if v.IsValid() {
+				svc.tokens[k] = v
 			}
 		}
+		old := svc.token
+		svc.token = svc.tokens[svc.URL.String()]
+		if old.Username != "" {
+			svc.token.Username, svc.token.Password = old.Username, old.Password
+		}
+		svc.token.AuthURL = svc.URL.JoinPath("auth").String()
+		return
 	}
+	if err != nil {
+		logger.Error(err, "parse", "file", fh.Name())
+	} else {
+		logger.Info("not valid", "file", fh.Name())
+	}
+	_ = os.Remove(fh.Name())
+}
+func (svc *Jira) URLFor(typ, id, action string) *url.URL {
 	URL := svc.URL.JoinPath("/"+typ, url.PathEscape(id))
 	if action != "" {
 		URL = URL.JoinPath(action)
@@ -928,18 +939,18 @@ type JIRAAttachment struct {
 }
 
 func (svc *Jira) Do(ctx context.Context, req *http.Request) ([]byte, error) {
-	b, changed, err := svc.Token.do(ctx, svc.HTTPClient, req)
+	b, changed, err := svc.token.do(ctx, svc.HTTPClient, req)
 	if changed {
-		if svc.Tokens == nil {
-			svc.Tokens = make(map[string]Token)
+		if svc.tokens == nil {
+			svc.tokens = make(map[string]Token)
 		}
-		svc.Tokens[svc.URL.String()] = svc.Token
-		if svc.TokensFile != "" {
+		svc.tokens[svc.URL.String()] = svc.token
+		if svc.tokensFile != "" {
 			var buf bytes.Buffer
-			if err := json.NewEncoder(&buf).Encode(svc.Tokens); err != nil {
+			if err := json.NewEncoder(&buf).Encode(svc.tokens); err != nil {
 				logger.Error(err, "marshal tokens")
-			} else if err := renameio.WriteFile(svc.TokensFile, buf.Bytes(), 0600); err != nil {
-				logger.Error(err, "write token", "file", svc.TokensFile)
+			} else if err := renameio.WriteFile(svc.tokensFile, buf.Bytes(), 0600); err != nil {
+				logger.Error(err, "write token", "file", svc.tokensFile)
 			}
 		}
 	}
@@ -1047,7 +1058,9 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		}
 		logger.V(1).Info("authenticate", "url", t.AuthURL, "body", buf.String())
 		req.Header.Set("Content-Type", "application/json")
+		start := time.Now()
 		resp, err := httpClient.Do(req.WithContext(ctx))
+		logger.Info("authenticate", "dur", time.Since(start).String(), "error", err)
 		if err != nil {
 			return nil, changed, err
 		}
@@ -1096,7 +1109,9 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 			return nil, changed, err
 		}
 	}
+	start := time.Now()
 	resp, err := httpClient.Do(req.WithContext(ctx))
+	logger.Info("do", "url", req.URL.String(), "dur", time.Since(start).String())
 	if err != nil {
 		return nil, changed, err
 	}

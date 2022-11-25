@@ -99,8 +99,8 @@ func Main() error {
 
 	fs = flag.NewFlagSet("jira", flag.ContinueOnError)
 	flagBaseURL := fs.String("jira-base", DefaultJiraURL, "JIRA base URL (with basic auth!)")
-	fs.StringVar(&svc.Token.Username, "jira-user", "", "service user")
-	fs.StringVar(&svc.Token.Password, "jira-password", "", "service password")
+	flagJiraUser := fs.String("jira-user", "", "service user")
+	flagJiraPassword := fs.String("jira-password", "", "service password")
 	flagTimeout := fs.Duration("timeout", 30*time.Second, "timeout")
 	flagBasicUser := fs.String("basic-user", "", "JIRA user")
 	flagBasicPassword := fs.String("basic-password", "", "JIRA password")
@@ -111,7 +111,7 @@ func Main() error {
 	}
 	// nosemgrep: go.lang.correctness.permissions.file_permission.incorrect-default-permission
 	_ = os.MkdirAll(ucd, 0750)
-	fs.StringVar(&svc.TokensFile, "token", filepath.Join(ucd, "jira-token.json"), "JIRA token file")
+	flagTokensFile := fs.String("token", filepath.Join(ucd, "jira-token.json"), "JIRA token file")
 	app := ffcli.Command{Name: "jira", FlagSet: fs, Options: []ff.Option{ff.WithEnvVarNoPrefix()},
 		Subcommands: []*ffcli.Command{&addAttachmentCmd, &addCommentCmd},
 		Exec: func(ctx context.Context, args []string) error {
@@ -146,12 +146,15 @@ func Main() error {
 	if *flagBasicUser != "" {
 		svc.URL.User = url.UserPassword(*flagBasicUser, *flagBasicPassword)
 	}
-	svc.Token.AuthURL = svc.URL.JoinPath("auth").String()
+	svc.Load(*flagTokensFile, *flagJiraUser, *flagJiraPassword)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 	ctx, cancel = context.WithTimeout(ctx, *flagTimeout)
 	defer cancel()
 
-	return app.Run(ctx)
+	start := time.Now()
+	err = app.Run(ctx)
+	logger.Info("run", "dur", time.Since(start).String())
+	return err
 }
