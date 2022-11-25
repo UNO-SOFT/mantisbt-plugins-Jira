@@ -25,6 +25,8 @@ import (
 type Jira struct {
 	URL        *url.URL
 	Token      Token
+	Tokens     map[string]Token
+	TokensFile string
 	HTTPClient *http.Client
 }
 
@@ -757,6 +759,31 @@ func (svc *Jira) IssuePut(ctx context.Context, issue JIRAIssue) error {
 	return err
 }
 func (svc *Jira) URLFor(typ, id, action string) *url.URL {
+	if svc.Tokens == nil && svc.TokensFile != "" {
+		if fh, err := os.Open(svc.TokensFile); err != nil {
+			logger.Error(err, "open", "file", svc.TokensFile)
+		} else {
+			var m map[string]Token
+			err = json.NewDecoder(fh).Decode(&m)
+			fh.Close()
+			if err == nil {
+				svc.Tokens = make(map[string]Token, len(m))
+				for k, v := range m {
+					if v.IsValid() {
+						svc.Tokens[k] = v
+					}
+				}
+				svc.Token = svc.Tokens[svc.URL.String()]
+			} else {
+				if err != nil {
+					logger.Error(err, "parse", "file", fh.Name())
+				} else {
+					logger.Info("not valid", "file", fh.Name())
+				}
+				_ = os.Remove(fh.Name())
+			}
+		}
+	}
 	URL := svc.URL.JoinPath("/"+typ, url.PathEscape(id))
 	if action != "" {
 		URL = URL.JoinPath(action)
@@ -901,7 +928,25 @@ type JIRAAttachment struct {
 }
 
 func (svc *Jira) Do(ctx context.Context, req *http.Request) ([]byte, error) {
-	return svc.Token.do(ctx, svc.HTTPClient, req)
+	b, changed, err := svc.Token.do(ctx, svc.HTTPClient, req)
+	if changed {
+		if svc.Tokens == nil {
+			svc.Tokens = make(map[string]Token)
+		}
+		svc.Tokens[svc.URL.String()] = svc.Token
+		if svc.TokensFile != "" {
+			var buf bytes.Buffer
+			if err := json.NewEncoder(&buf).Encode(svc.Tokens); err != nil {
+				logger.Error(err, "marshal tokens")
+			} else if err := renameio.WriteFile(svc.TokensFile, buf.Bytes(), 0600); err != nil {
+				logger.Error(err, "write token", "file", svc.TokensFile)
+			}
+		}
+	}
+	if err != nil {
+		return b, err
+	}
+	return b, nil
 }
 
 type rawToken struct {
@@ -916,7 +961,6 @@ type rawToken struct {
 type Token struct {
 	AuthURL            string
 	Username, Password string
-	FileName           string
 	till               time.Time
 	mu                 sync.Mutex
 	rawToken
@@ -970,7 +1014,7 @@ type userPass struct {
 	Password string `json:"password"`
 }
 
-func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Request) ([]byte, error) {
+func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Request) ([]byte, bool, error) {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 		if httpClient.Transport == nil {
@@ -981,31 +1025,11 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	var buf bytes.Buffer
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if !t.IsValid() {
-		if t.FileName != "" {
-			if fh, err := os.Open(t.FileName); err != nil {
-				logger.Error(err, "open", "file", t.FileName)
-			} else {
-				var t2 Token
-				err = json.NewDecoder(fh).Decode(&t2)
-				fh.Close()
-				if err == nil && t2.IsValid() {
-					t.AuthURL, t.Username, t.Password, t.FileName, t.till, t.rawToken = t2.AuthURL, t2.Username, t2.Password, t2.FileName, t2.till, t2.rawToken
-				} else {
-					if err != nil {
-						logger.Error(err, "parse", "file", fh.Name())
-					} else {
-						logger.Info("not valid", "file", fh.Name())
-					}
-					_ = os.Remove(fh.Name())
-				}
-			}
-		}
-	}
 	logger.V(1).Info("IsValid", "token", t, "valid", t.IsValid())
+	var changed bool
 	if !t.IsValid() {
 		if t.Username == "" || t.Password == "" {
-			return nil, fmt.Errorf("empty JIRA username/password")
+			return nil, changed, fmt.Errorf("empty JIRA username/password")
 		}
 		/*
 		   curl --location --request POST 'https://partnerapi-uat.aegon.hu/partner/v1/ticket/update/auth?grant_type=password' \
@@ -1015,36 +1039,32 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		*/
 
 		if err := json.NewEncoder(&buf).Encode(userPass{Username: t.Username, Password: t.Password}); err != nil {
-			return nil, err
+			return nil, changed, err
 		}
 		req, err := http.NewRequestWithContext(ctx, "POST", t.AuthURL+"?grant_type=password", bytes.NewReader(buf.Bytes()))
 		if err != nil {
-			return nil, err
+			return nil, changed, err
 		}
 		logger.V(1).Info("authenticate", "url", t.AuthURL, "body", buf.String())
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := httpClient.Do(req.WithContext(ctx))
 		if err != nil {
-			return nil, err
+			return nil, changed, err
 		}
 		if resp == nil || resp.Body == nil {
-			return nil, fmt.Errorf("empty response")
+			return nil, changed, fmt.Errorf("empty response")
 		}
 		buf.Reset()
 		_, err = io.Copy(&buf, resp.Body)
 		resp.Body.Close()
 		if err != nil {
-			return nil, err
+			return nil, changed, err
 		}
 		logger.V(1).Info("authenticate", "response", buf.String())
 		if err = json.NewDecoder(bytes.NewReader(buf.Bytes())).Decode(&t); err != nil {
-			return nil, fmt.Errorf("decode %q: %w", buf.String(), err)
+			return nil, changed, fmt.Errorf("decode %q: %w", buf.String(), err)
 		}
-		if t.FileName != "" {
-			if err = renameio.WriteFile(t.FileName, buf.Bytes(), 0600); err != nil {
-				logger.Error(err, "write token", "file", t.FileName)
-			}
-		}
+		changed = true
 		/*
 		   answer:
 		   {
@@ -1057,7 +1077,7 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		*/
 	}
 	if req == nil {
-		return nil, nil
+		return nil, changed, nil
 	}
 	/*
 	   2.
@@ -1073,25 +1093,25 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		b, err := httputil.DumpRequestOut(req, true)
 		logger.V(1).Info("Do", "request", string(b))
 		if err != nil {
-			return nil, err
+			return nil, changed, err
 		}
 	}
 	resp, err := httpClient.Do(req.WithContext(ctx))
 	if err != nil {
-		return nil, err
+		return nil, changed, err
 	}
 	if resp == nil {
-		return nil, fmt.Errorf("empty response")
+		return nil, changed, fmt.Errorf("empty response")
 	}
 	if logger.V(1).Enabled() {
 		b, err := httputil.DumpResponse(resp, true)
 		logger.V(1).Info("Do", "response", string(b))
 		if err != nil {
-			return nil, err
+			return nil, changed, err
 		}
 	}
 	if resp.Body == nil {
-		return nil, nil
+		return nil, changed, nil
 	}
 	buf.Reset()
 	_, err = io.Copy(&buf, resp.Body)
@@ -1102,13 +1122,13 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	var jerr JIRAError
 	if err = json.Unmarshal(buf.Bytes(), &jerr); err == nil {
 		if jerr.ErrorCode != "" {
-			return nil, fmt.Errorf("%s: %s", jerr.ErrorCode, jerr.Error)
+			return nil, changed, fmt.Errorf("%s: %s", jerr.ErrorCode, jerr.Error)
 		} else if jerr.Fault.Code != "" {
-			return nil, fmt.Errorf("%s: %s", jerr.Fault.Code, jerr.Fault.Detail.Message)
+			return nil, changed, fmt.Errorf("%s: %s", jerr.Fault.Code, jerr.Fault.Detail.Message)
 		}
 	}
 	if resp.StatusCode >= 400 {
-		return buf.Bytes(), fmt.Errorf("%d: %s: %s", resp.StatusCode, resp.Status, buf.String())
+		return buf.Bytes(), changed, fmt.Errorf("%d: %s: %s", resp.StatusCode, resp.Status, buf.String())
 	}
-	return buf.Bytes(), nil
+	return buf.Bytes(), changed, nil
 }

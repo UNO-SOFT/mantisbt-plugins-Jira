@@ -17,10 +17,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/UNO-SOFT/zlog"
 	"github.com/klauspost/compress/gzhttp"
 	"github.com/peterbourgon/ff/v3"
 	"github.com/peterbourgon/ff/v3/ffcli"
-	"github.com/UNO-SOFT/zlog"
 )
 
 var logger = zlog.New(os.Stderr)
@@ -111,7 +111,7 @@ func Main() error {
 	}
 	// nosemgrep: go.lang.correctness.permissions.file_permission.incorrect-default-permission
 	_ = os.MkdirAll(ucd, 0750)
-	fs.StringVar(&svc.Token.FileName, "token", filepath.Join(ucd, "jira-token.json"), "JIRA token file")
+	fs.StringVar(&svc.TokensFile, "token", filepath.Join(ucd, "jira-token.json"), "JIRA token file")
 	app := ffcli.Command{Name: "jira", FlagSet: fs, Options: []ff.Option{ff.WithEnvVarNoPrefix()},
 		Subcommands: []*ffcli.Command{&addAttachmentCmd, &addCommentCmd},
 		Exec: func(ctx context.Context, args []string) error {
