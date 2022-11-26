@@ -1102,7 +1102,7 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	*/
 	req.Header.Set("Cookie", "JSESSIONID="+t.JSessionID)
 	req.Header.Set("Authorization", "Bearer "+t.AccessToken)
-	if logger.V(1).Enabled() {
+	if logger.V(1).Enabled(0) {
 		b, err := httputil.DumpRequestOut(req, true)
 		logger.V(1).Info("Do", "request", string(b))
 		if err != nil {
@@ -1118,7 +1118,7 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	if resp == nil {
 		return nil, changed, fmt.Errorf("empty response")
 	}
-	if logger.V(1).Enabled() {
+	if logger.V(1).Enabled(0) {
 		b, err := httputil.DumpResponse(resp, true)
 		logger.V(1).Info("Do", "response", string(b))
 		if err != nil {

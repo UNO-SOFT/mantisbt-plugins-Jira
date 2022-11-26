@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/UNO-SOFT/zlog"
+	"github.com/UNO-SOFT/zlog/v2"
 	"github.com/klauspost/compress/gzhttp"
 	"github.com/peterbourgon/ff/v3"
 	"github.com/peterbourgon/ff/v3/ffcli"
