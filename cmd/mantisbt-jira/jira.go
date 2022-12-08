@@ -780,7 +780,7 @@ func (svc *Jira) Load(tokensFile, jiraUser, jiraPassword string) {
 			}
 		}
 		old := svc.token
-		svc.token = svc.tokens[svc.URL.String()]
+		svc.token = svc.tokens[redactedURL(svc.URL)]
 		if old.Username != "" {
 			svc.token.Username, svc.token.Password = old.Username, old.Password
 		}
@@ -944,7 +944,7 @@ func (svc *Jira) Do(ctx context.Context, req *http.Request) ([]byte, error) {
 		if svc.tokens == nil {
 			svc.tokens = make(map[string]Token)
 		}
-		svc.tokens[svc.URL.String()] = svc.token
+		svc.tokens[redactedURL(svc.URL)] = svc.token
 		if svc.tokensFile != "" {
 			var buf bytes.Buffer
 			if err := json.NewEncoder(&buf).Encode(svc.tokens); err != nil {
@@ -1102,7 +1102,8 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	*/
 	req.Header.Set("Cookie", "JSESSIONID="+t.JSessionID)
 	req.Header.Set("Authorization", "Bearer "+t.AccessToken)
-	if logger.V(1).Enabled(0) {
+	logEnabled := logger.V(1).AsLogr().Enabled()
+	if logEnabled {
 		b, err := httputil.DumpRequestOut(req, true)
 		logger.V(1).Info("Do", "request", string(b))
 		if err != nil {
@@ -1118,7 +1119,7 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	if resp == nil {
 		return nil, changed, fmt.Errorf("empty response")
 	}
-	if logger.V(1).Enabled(0) {
+	if logEnabled {
 		b, err := httputil.DumpResponse(resp, true)
 		logger.V(1).Info("Do", "response", string(b))
 		if err != nil {
@@ -1146,4 +1147,16 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		return buf.Bytes(), changed, fmt.Errorf("%d: %s: %s", resp.StatusCode, resp.Status, buf.String())
 	}
 	return buf.Bytes(), changed, nil
+}
+
+func redactedURL(u *url.URL) string {
+	if u.User == nil {
+		return u.String()
+	}
+	if p, _ := u.User.Password(); p != "" && u.User.Username() == "" {
+		return u.String()
+	}
+	ru := *u
+	ru.User = nil
+	return ru.String()
 }
