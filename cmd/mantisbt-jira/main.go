@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,6 +35,18 @@ const DefaultJiraURL = "https://partnerapi-uat.aegon.hu/partner/v1/ticket/update
 func main() {
 	if err := Main(); err != nil {
 		logger.Error(err, "Main")
+		var jerr *JIRAError
+		if errors.As(err, &jerr) {
+			//logger.Info("as jiraerr", "error", jerr, "code", jerr.Code)
+			if s, _, ok := strings.Cut(jerr.Code, " "); ok {
+				//logger.Info("cut", "s", s)
+				if i, err := strconv.Atoi(strings.TrimSpace(s)); err == nil {
+					if 401 <= i && i < 500 {
+						os.Exit(i - 400)
+					}
+				}
+			}
+		}
 		os.Exit(1)
 	}
 }
@@ -97,6 +111,36 @@ func Main() error {
 		},
 	}
 
+	issueGetCmd := ffcli.Command{Name: "get",
+		Exec: func(ctx context.Context, args []string) error {
+			issueID := args[0]
+			issue, err := svc.IssueGet(ctx, issueID, nil)
+			if err != nil {
+				fmt.Println("ERR", err)
+				return err
+			}
+			fmt.Println(issue)
+			return nil
+		},
+	}
+	issueExistsCmd := ffcli.Command{Name: "exists",
+		Exec: func(ctx context.Context, args []string) error {
+			issueID := args[0]
+			issue, err := svc.IssueGet(ctx, issueID, []string{"status"})
+			if err != nil {
+				fmt.Println("ERR", err)
+				return err
+			}
+			logger.Info("issue exists", "issueID", issueID, "status", issue.Fields.Status)
+			fmt.Println(issue.Fields.Status.StatusCategory.Name)
+			return nil
+		},
+	}
+
+	issueCmd := ffcli.Command{Name: "issue",
+		Subcommands: []*ffcli.Command{&issueGetCmd, &issueExistsCmd},
+		Exec:        issueExistsCmd.Exec,
+	}
 	fs = flag.NewFlagSet("jira", flag.ContinueOnError)
 	flagBaseURL := fs.String("jira-base", DefaultJiraURL, "JIRA base URL (with basic auth!)")
 	flagJiraUser := fs.String("jira-user", "", "service user")
@@ -113,7 +157,10 @@ func Main() error {
 	_ = os.MkdirAll(ucd, 0750)
 	flagTokensFile := fs.String("token", filepath.Join(ucd, "jira-token.json"), "JIRA token file")
 	app := ffcli.Command{Name: "jira", FlagSet: fs, Options: []ff.Option{ff.WithEnvVarNoPrefix()},
-		Subcommands: []*ffcli.Command{&addAttachmentCmd, &addCommentCmd},
+		Subcommands: []*ffcli.Command{
+			&addAttachmentCmd, &addCommentCmd,
+			&issueCmd,
+		},
 		Exec: func(ctx context.Context, args []string) error {
 			if len(args) == 0 {
 				args = append(args, "INCIDENT-6508")

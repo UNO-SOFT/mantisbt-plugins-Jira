@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -760,6 +761,7 @@ func (svc *Jira) IssuePut(ctx context.Context, issue JIRAIssue) error {
 }
 func (svc *Jira) Load(tokensFile, jiraUser, jiraPassword string) {
 	svc.token.Username, svc.token.Password = jiraUser, jiraPassword
+	svc.token.AuthURL = svc.URL.JoinPath("auth").String()
 	if tokensFile == "" {
 		return
 	}
@@ -784,7 +786,6 @@ func (svc *Jira) Load(tokensFile, jiraUser, jiraPassword string) {
 		if old.Username != "" {
 			svc.token.Username, svc.token.Password = old.Username, old.Password
 		}
-		svc.token.AuthURL = svc.URL.JoinPath("auth").String()
 		return
 	}
 	if err != nil {
@@ -986,11 +987,8 @@ func (t *Token) UnmarshalJSON(b []byte) error {
 }
 func (t *Token) init() error {
 	logger.V(2).Info("init", "raw", t.rawToken)
-	if t.rawToken.JIRAError.ErrorCode != "" {
-		return fmt.Errorf("%s: %s", t.rawToken.JIRAError.ErrorCode, t.rawToken.JIRAError.Error)
-	}
-	if t.rawToken.Fault.Code != "" {
-		return fmt.Errorf("%s: %s", t.rawToken.Fault.Code, t.rawToken.Fault.Detail.Message)
+	if t.rawToken.JIRAError.IsValid() {
+		return &t.rawToken.JIRAError
 	}
 	issuedAt, err := strconv.ParseInt(t.IssuedAt, 10, 64)
 	if err != nil {
@@ -1009,9 +1007,10 @@ func (t *Token) IsValid() bool {
 }
 
 type JIRAError struct {
-	ErrorCode string `json:",omitempty"`
-	Error     string `json:",omitempty"`
-	Fault     Fault  `json:"fault,omitempty"`
+	Code     string   `json:"ErrorCode,omitempty"`
+	Message  string   `json:"Error,omitempty"`
+	Fault    Fault    `json:"fault,omitempty"`
+	Messages []string `json:"errorMessages,omitempty"`
 }
 type Fault struct {
 	Code   string      `json:"faultstring,omitempty"`
@@ -1023,6 +1022,23 @@ type FaultDetail struct {
 type userPass struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+}
+
+func (je *JIRAError) Error() string {
+	var buf strings.Builder
+	if je.Code != "" {
+		buf.WriteString(je.Code + ": " + je.Message)
+	} else if je.Fault.Code != "" {
+		buf.WriteString(je.Fault.Code + ": " + je.Fault.Detail.Message)
+	}
+	for _, m := range je.Messages {
+		buf.WriteString("; ")
+		buf.WriteString(m)
+	}
+	return buf.String()
+}
+func (je *JIRAError) IsValid() bool {
+	return je != nil && (je.Code != "" || je.Fault.Code != "" || len(je.Messages) != 0)
 }
 
 func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Request) ([]byte, bool, error) {
@@ -1060,7 +1076,7 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		req.Header.Set("Content-Type", "application/json")
 		start := time.Now()
 		resp, err := httpClient.Do(req.WithContext(ctx))
-		logger.Info("authenticate", "dur", time.Since(start).String(), "error", err)
+		logger.Info("authenticate", "dur", time.Since(start).String(), "url", t.AuthURL, "error", err)
 		if err != nil {
 			return nil, changed, err
 		}
@@ -1105,14 +1121,14 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	logEnabled := logger.V(1).AsLogr().Enabled()
 	if logEnabled {
 		b, err := httputil.DumpRequestOut(req, true)
-		logger.V(1).Info("Do", "request", string(b))
+		logger.V(1).Info("Do", "request", string(b), "dumpErr", err)
 		if err != nil {
 			return nil, changed, err
 		}
 	}
 	start := time.Now()
 	resp, err := httpClient.Do(req.WithContext(ctx))
-	logger.Info("do", "url", req.URL.String(), "dur", time.Since(start).String())
+	logger.Info("do", "url", req.URL.String(), "dur", time.Since(start).String(), "hasBody", resp.Body != nil, "status", resp.Status)
 	if err != nil {
 		return nil, changed, err
 	}
@@ -1121,7 +1137,7 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	}
 	if logEnabled {
 		b, err := httputil.DumpResponse(resp, true)
-		logger.V(1).Info("Do", "response", string(b))
+		logger.V(1).Info("Do", "response", string(b), "dumpErr", err)
 		if err != nil {
 			return nil, changed, err
 		}
@@ -1136,15 +1152,16 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		logger.Error(err, "read request")
 	}
 	var jerr JIRAError
-	if err = json.Unmarshal(buf.Bytes(), &jerr); err == nil {
-		if jerr.ErrorCode != "" {
-			return nil, changed, fmt.Errorf("%s: %s", jerr.ErrorCode, jerr.Error)
-		} else if jerr.Fault.Code != "" {
-			return nil, changed, fmt.Errorf("%s: %s", jerr.Fault.Code, jerr.Fault.Detail.Message)
+	err = json.Unmarshal(buf.Bytes(), &jerr)
+	logger.Info("Unmarshal JIRAError", "error", err, "jErr", jerr, "jErrS", fmt.Sprintf("%#v", jerr))
+	if err == nil && jerr.IsValid() {
+		if jerr.Code == "" {
+			jerr.Code = resp.Status
 		}
+		return nil, changed, &jerr
 	}
 	if resp.StatusCode >= 400 {
-		return buf.Bytes(), changed, fmt.Errorf("%d: %s: %s", resp.StatusCode, resp.Status, buf.String())
+		return buf.Bytes(), changed, &JIRAError{Code: resp.Status, Message: buf.String()}
 	}
 	return buf.Bytes(), changed, nil
 }
