@@ -178,7 +178,7 @@ $this->log( 'comment added' );
 		fclose( $t_pipes[2] );
 		$t_rc = proc_close( $t_process );
 		$this->log('got ' . $t_rc . ': stderr=' . var_export( $t_stderr, TRUE ) );
-		return $t_rc == 0;
+		return $t_rc;
 	}
 
 	function log( $p_text ) {
