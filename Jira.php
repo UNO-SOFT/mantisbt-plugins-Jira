@@ -50,7 +50,8 @@ class JiraPlugin extends MantisPlugin {
 		return array( 
 			'base' => plugin_config_get( 'base', 'https://partnerapi-uat.aegon.hu/partner/v1/ticket/update' ),
 			'user' => plugin_config_get( 'user', '' ),
-			'password' => plugin_config_get( 'password', '' )
+			'password' => plugin_config_get( 'password', '' ),
+            'key_regexp' => plugin_config_get( 'key_regexp', '^(INCIDENT|CHANGE|REQUEST|PROBLEM)-[0-9]+$' ),
 		);
 	}
 
@@ -79,8 +80,9 @@ class JiraPlugin extends MantisPlugin {
 			$this->skip_reporter_id = user_get_id_by_name( 'jira' );
 		}
 		$t_issueid = custom_field_get_value( $this->issueid_field_id, $p_bug_id );
-		$this->log( 'nyilvszam(' . $this->issueid_field_id . '): ' . $t_issueid );
-		if( !$t_issueid ) {
+        $t_pattern = '/' . plugin_config_get( 'key_regexp', '^(INCIDENT|CHANGE|REQUEST|PROBLEM)-[0-9]+$' ) . '/';
+		$this->log( 'nyilvszam(' . $this->issueid_field_id . '): ' . $t_issueid . ", pat=$t_pattern match=" . preg_match( $t_pattern, $t_issueid ) );
+		if( !$t_issueid || !preg_match( $t_pattern, $t_issueid ) ) {
 			return;
 		}
 
@@ -153,7 +155,7 @@ $this->log( 'comment added' );
 		$t_conf = $this->config();
 		$t_args = array( '/usr/local/bin/mantisbt-jira' );
 		foreach( $t_conf as $k => $v ) {
-			if( $v ) {
+			if( $v && !strstr( $k, '_' ) ) {
 				$t_args[] = escapeshellarg( '-jira-' . $k . '=' . $v );
 			}
 		}
