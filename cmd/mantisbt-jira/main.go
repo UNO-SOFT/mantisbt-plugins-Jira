@@ -1,4 +1,4 @@
-// Copyright 2022 Tamás Gulácsi. All rights reserved.
+// Copyright 2022, 2023 Tamás Gulácsi. All rights reserved.
 
 package main
 

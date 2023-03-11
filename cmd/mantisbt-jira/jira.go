@@ -1,4 +1,4 @@
-// Copyright 2022 Tamás Gulácsi. All rights reserved.
+// Copyright 2022, 2023 Tamás Gulácsi. All rights reserved.
 
 package main
 
@@ -786,6 +786,9 @@ func (svc *Jira) Load(tokensFile, jiraUser, jiraPassword string) {
 		if old.Username != "" {
 			svc.token.Username, svc.token.Password = old.Username, old.Password
 		}
+		if svc.token.AuthURL == "" {
+			svc.token.AuthURL = old.AuthURL
+		}
 		return
 	}
 	if err != nil {
@@ -982,11 +985,11 @@ func (t *Token) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &t.rawToken); err != nil {
 		return err
 	}
-	//logger.V(2).Info("UnmarshalJSON", "b", string(b), "raw", fmt.Sprintf("%#v", t.rawToken))
+	//logger.Debug("UnmarshalJSON", "b", string(b), "raw", fmt.Sprintf("%#v", t.rawToken))
 	return t.init()
 }
 func (t *Token) init() error {
-	logger.V(2).Info("init", "raw", t.rawToken)
+	logger.Debug("init", "raw", t.rawToken)
 	if t.rawToken.JIRAError.IsValid() {
 		return &t.rawToken.JIRAError
 	}
@@ -999,7 +1002,7 @@ func (t *Token) init() error {
 		return fmt.Errorf("parse expiresIn(%q): %w", t.ExpiresIn, err)
 	}
 	t.till = time.Unix(issuedAt/1000, issuedAt%1000).Add(time.Duration(expiresIn) * time.Second)
-	logger.V(2).Info("Unmarshal", "issuedAt", issuedAt, "expiresIn", expiresIn, "till", t.till)
+	logger.Debug("Unmarshal", "issuedAt", issuedAt, "expiresIn", expiresIn, "till", t.till)
 	return nil
 }
 func (t *Token) IsValid() bool {
@@ -1052,11 +1055,11 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	var buf bytes.Buffer
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	logger.V(1).Info("IsValid", "token", t, "valid", t.IsValid())
+	logger.Debug("IsValid", "token", t, "valid", t.IsValid())
 	var changed bool
 	if !t.IsValid() {
-		if t.Username == "" || t.Password == "" {
-			return nil, changed, fmt.Errorf("empty JIRA username/password")
+		if t.Username == "" || t.Password == "" || t.AuthURL == "" {
+			return nil, changed, fmt.Errorf("empty JIRA username/password/AuthURL")
 		}
 		/*
 		   curl --location --request POST 'https://partnerapi-uat.aegon.hu/partner/v1/ticket/update/auth?grant_type=password' \
@@ -1072,7 +1075,7 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		if err != nil {
 			return nil, changed, err
 		}
-		logger.V(1).Info("authenticate", "url", t.AuthURL, "body", buf.String())
+		logger.Debug("authenticate", "url", t.AuthURL, "body", buf.String())
 		req.Header.Set("Content-Type", "application/json")
 		start := time.Now()
 		resp, err := httpClient.Do(req.WithContext(ctx))
@@ -1089,7 +1092,7 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		if err != nil {
 			return nil, changed, err
 		}
-		logger.V(1).Info("authenticate", "response", buf.String())
+		logger.Debug("authenticate", "response", buf.String())
 		if err = json.NewDecoder(bytes.NewReader(buf.Bytes())).Decode(&t); err != nil {
 			return nil, changed, fmt.Errorf("decode %q: %w", buf.String(), err)
 		}
@@ -1118,10 +1121,10 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	*/
 	req.Header.Set("Cookie", "JSESSIONID="+t.JSessionID)
 	req.Header.Set("Authorization", "Bearer "+t.AccessToken)
-	logEnabled := logger.V(1).AsLogr().Enabled()
+	logEnabled := logger.V(1).Logr().Enabled()
 	if logEnabled {
 		b, err := httputil.DumpRequestOut(req, true)
-		logger.V(1).Info("Do", "request", string(b), "dumpErr", err)
+		logger.Debug("Do", "request", string(b), "dumpErr", err)
 		if err != nil {
 			return nil, changed, err
 		}
@@ -1137,7 +1140,7 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	}
 	if logEnabled {
 		b, err := httputil.DumpResponse(resp, true)
-		logger.V(1).Info("Do", "response", string(b), "dumpErr", err)
+		logger.Debug("Do", "response", string(b), "dumpErr", err)
 		if err != nil {
 			return nil, changed, err
 		}
