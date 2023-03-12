@@ -3,7 +3,7 @@ module github.com/UNO-SOFT/mantisbt-plugins-Jira
 go 1.19
 
 require (
-	github.com/UNO-SOFT/zlog v0.5.1
+	github.com/UNO-SOFT/zlog v0.5.3
 	github.com/google/renameio v1.0.1
 	github.com/klauspost/compress v1.16.0
 	github.com/peterbourgon/ff/v3 v3.3.0
