@@ -1131,7 +1131,7 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	}
 	start := time.Now()
 	resp, err := httpClient.Do(req.WithContext(ctx))
-	logger.Info("do", "url", req.URL.String(), "dur", time.Since(start).String(), "hasBody", resp.Body != nil, "status", resp.Status)
+	logger.Info("do", "url", req.URL.String(), "method", req.Method, "dur", time.Since(start).String(), "hasBody", resp.Body != nil, "status", resp.Status)
 	if err != nil {
 		return nil, changed, err
 	}
@@ -1156,7 +1156,11 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	}
 	var jerr JIRAError
 	err = json.Unmarshal(buf.Bytes(), &jerr)
-	logger.Info("Unmarshal JIRAError", "error", err, "jErr", jerr, "jErrS", fmt.Sprintf("%#v", jerr))
+	if err != nil {
+		logger.Error(err, "Unmarshal JIRAError", "jErr", jerr, "jErrS", fmt.Sprintf("%#v", jerr))
+	} else {
+		logger.Debug("Unmarshal JIRAError", "jErr", jerr, "jErrS", fmt.Sprintf("%#v", jerr))
+	}
 	if err == nil && jerr.IsValid() {
 		if jerr.Code == "" {
 			jerr.Code = resp.Status
