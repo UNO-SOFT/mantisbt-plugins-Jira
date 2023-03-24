@@ -1154,18 +1154,22 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	if err != nil {
 		logger.Error(err, "read request")
 	}
-	var jerr JIRAError
-	err = json.Unmarshal(buf.Bytes(), &jerr)
-	if err != nil {
-		logger.Error(err, "Unmarshal JIRAError", "jErr", jerr, "jErrS", fmt.Sprintf("%#v", jerr))
-	} else {
-		logger.Debug("Unmarshal JIRAError", "jErr", jerr, "jErrS", fmt.Sprintf("%#v", jerr))
-	}
-	if err == nil && jerr.IsValid() {
-		if jerr.Code == "" {
-			jerr.Code = resp.Status
+	if bytes.Contains(buf.Bytes(), []byte(`"ErrorCode"`)) ||
+		bytes.Contains(buf.Bytes(), []byte(`"Error"`)) ||
+		bytes.Contains(buf.Bytes(), []byte(`"fault"`)) {
+		var jerr JIRAError
+		err = json.Unmarshal(buf.Bytes(), &jerr)
+		if err != nil {
+			logger.Error(err, "Unmarshal JIRAError", "jErr", jerr, "jErrS", fmt.Sprintf("%#v", jerr), "buf", buf.String())
+		} else {
+			logger.Debug("Unmarshal JIRAError", "jErr", jerr, "jErrS", fmt.Sprintf("%#v", jerr))
 		}
-		return nil, changed, &jerr
+		if err == nil && jerr.IsValid() {
+			if jerr.Code == "" {
+				jerr.Code = resp.Status
+			}
+			return nil, changed, &jerr
+		}
 	}
 	if resp.StatusCode >= 400 {
 		return buf.Bytes(), changed, &JIRAError{Code: resp.Status, Message: buf.String()}
