@@ -25,7 +25,8 @@ import (
 	"github.com/peterbourgon/ff/v3/ffcli"
 )
 
-var logger = zlog.New(os.Stderr)
+var verbose zlog.VerboseVar
+var logger = zlog.NewLogger(zlog.MaybeConsoleHandler(&verbose, os.Stderr)).SLog()
 
 // https://partnerapi-uat.aegon.hu/partner/v1/ticket/update/openapi.json
 
@@ -34,7 +35,7 @@ const DefaultJiraURL = "https://partnerapi-uat.aegon.hu/partner/v1/ticket/update
 
 func main() {
 	if err := Main(); err != nil {
-		logger.Error(err, "Main")
+		logger.Error("Main", "error", err)
 		var jerr *JIRAError
 		if errors.As(err, &jerr) {
 			//logger.Info("as jiraerr", "error", jerr, "code", jerr.Code)
@@ -86,7 +87,7 @@ func Main() error {
 			var a [1024]byte
 			n, err := r.Read(a[:])
 			if n == 0 {
-				logger.Error(err, "read", "file", r)
+				logger.Error("read", "file", r, "error", err)
 				return err
 			}
 			b := a[:n]
@@ -148,7 +149,7 @@ func Main() error {
 	flagTimeout := fs.Duration("timeout", 30*time.Second, "timeout")
 	flagBasicUser := fs.String("basic-user", "", "JIRA user")
 	flagBasicPassword := fs.String("basic-password", "", "JIRA password")
-	flagVerbose := fs.Bool("v", false, "verbose logging")
+	fs.Var(&verbose, "v", "verbose logging")
 	ucd, err := os.UserConfigDir()
 	if err != nil {
 		return err
@@ -181,9 +182,6 @@ func Main() error {
 	}
 	if err := app.Parse(os.Args[1:]); err != nil {
 		return err
-	}
-	if *flagVerbose {
-		zlog.SetLevel(logger, zlog.TraceLevel)
 	}
 	svcURL, err := url.Parse(*flagBaseURL)
 	if err != nil {

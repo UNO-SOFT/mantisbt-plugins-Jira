@@ -20,6 +20,8 @@ import (
 
 	"github.com/google/renameio"
 	"github.com/klauspost/compress/gzhttp"
+
+	"golang.org/x/exp/slog"
 )
 
 // https://partnerapi-uat.aegon.hu/partner/v1/ticket/update/openapi.json
@@ -768,7 +770,7 @@ func (svc *Jira) Load(tokensFile, jiraUser, jiraPassword string) {
 	svc.tokensFile = tokensFile
 	fh, err := os.Open(tokensFile)
 	if err != nil {
-		logger.Error(err, "open", "file", tokensFile)
+		logger.Error("open", "file", tokensFile, "error", err)
 		return
 	}
 	var m map[string]Token
@@ -792,7 +794,7 @@ func (svc *Jira) Load(tokensFile, jiraUser, jiraPassword string) {
 		return
 	}
 	if err != nil {
-		logger.Error(err, "parse", "file", fh.Name())
+		logger.Error("parse", "file", fh.Name(), "error", err)
 	} else {
 		logger.Info("not valid", "file", fh.Name())
 	}
@@ -952,9 +954,9 @@ func (svc *Jira) Do(ctx context.Context, req *http.Request) ([]byte, error) {
 		if svc.tokensFile != "" {
 			var buf bytes.Buffer
 			if err := json.NewEncoder(&buf).Encode(svc.tokens); err != nil {
-				logger.Error(err, "marshal tokens")
+				logger.Error("marshal tokens", "error", err)
 			} else if err := renameio.WriteFile(svc.tokensFile, buf.Bytes(), 0600); err != nil {
-				logger.Error(err, "write token", "file", svc.tokensFile)
+				logger.Error("write token", "file", svc.tokensFile, "error", err)
 			}
 		}
 	}
@@ -1121,7 +1123,7 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	*/
 	req.Header.Set("Cookie", "JSESSIONID="+t.JSessionID)
 	req.Header.Set("Authorization", "Bearer "+t.AccessToken)
-	logEnabled := logger.V(1).Logr().Enabled()
+	logEnabled := logger.Enabled(ctx, slog.LevelDebug)
 	if logEnabled {
 		b, err := httputil.DumpRequestOut(req, true)
 		logger.Debug("Do", "request", string(b), "dumpErr", err)
@@ -1152,7 +1154,7 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	_, err = io.Copy(&buf, resp.Body)
 	resp.Body.Close()
 	if err != nil {
-		logger.Error(err, "read request")
+		logger.Error("read request", "error", err)
 	}
 	if bytes.Contains(buf.Bytes(), []byte(`"ErrorCode"`)) ||
 		bytes.Contains(buf.Bytes(), []byte(`"Error"`)) ||
@@ -1160,7 +1162,7 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		var jerr JIRAError
 		err = json.Unmarshal(buf.Bytes(), &jerr)
 		if err != nil {
-			logger.Error(err, "Unmarshal JIRAError", "jErr", jerr, "jErrS", fmt.Sprintf("%#v", jerr), "buf", buf.String())
+			logger.Error("Unmarshal JIRAError", "jErr", jerr, "jErrS", fmt.Sprintf("%#v", jerr), "buf", buf.String(), "error", err)
 		} else {
 			logger.Debug("Unmarshal JIRAError", "jErr", jerr, "jErrS", fmt.Sprintf("%#v", jerr))
 		}
