@@ -13,6 +13,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -400,6 +401,9 @@ type jiraIssueFields struct {
 
 type customFields map[string]json.RawMessage
 
+var jiraIssueFieldsOnce sync.Once
+var jiraIssueFieldsAlreadyStored map[string]struct{}
+
 func (issue *jiraIssueFields) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &issue.jiraFields); err != nil {
 		return err
@@ -407,8 +411,21 @@ func (issue *jiraIssueFields) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &issue.customFields); err != nil {
 		return err
 	}
+	const customFieldPrefix = "customfield_"
+	jiraIssueFieldsOnce.Do(func() {
+		t := reflect.TypeOf(jiraFields{})
+		jiraIssueFieldsAlreadyStored = make(map[string]struct{})
+		for i, n := 0, t.NumField(); i < n; i++ {
+			if s := t.Field(i).Tag.Get("json"); strings.HasPrefix(s, customFieldPrefix) {
+				jiraIssueFieldsAlreadyStored[s] = struct{}{}
+			}
+		}
+	})
 	for k := range issue.customFields {
-		if !strings.HasPrefix(k, "customfield_") {
+		if !strings.HasPrefix(k, customFieldPrefix) {
+			delete(issue.customFields, k)
+		}
+		if _, ok := jiraIssueFieldsAlreadyStored[k]; ok {
 			delete(issue.customFields, k)
 		}
 	}
