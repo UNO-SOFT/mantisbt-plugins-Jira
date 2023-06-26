@@ -43,364 +43,365 @@ type JIRAIssueType struct {
 	AvatarID    int    `json:"avatarId"`
 }
 
+// https://mholt.github.io/json-to-go/
 type JIRAIssue struct {
-	jiraIssue
-	customFields
+	Fields jiraIssueFields `json:"fields"`
+	Expand string          `json:"expand"`
+	ID     string          `json:"id"`
+	Self   string          `json:"self"`
+	Key    string          `json:"key"`
+}
+type jiraFields struct {
+	Timetracking struct {
+	} `json:"timetracking"`
+	Aggregatetimeoriginalestimate interface{} `json:"aggregatetimeoriginalestimate"`
+	Resolution                    interface{} `json:"resolution"`
+	Environment                   interface{} `json:"environment"`
+	Duedate                       interface{} `json:"duedate"`
+	Timeestimate                  interface{} `json:"timeestimate"`
+	Aggregatetimeestimate         interface{} `json:"aggregatetimeestimate"`
+	Timespent                     interface{} `json:"timespent"`
+	Aggregatetimespent            interface{} `json:"aggregatetimespent"`
+	Resolutiondate                interface{} `json:"resolutiondate"`
+	Timeoriginalestimate          interface{} `json:"timeoriginalestimate"`
+	MantisID                      string      `json:"customfield_15902"` // MantisID
+	Customfield11100              struct {
+		OngoingCycle struct {
+			GoalDuration struct {
+				Friendly string `json:"friendly"`
+				Millis   int    `json:"millis"`
+			} `json:"goalDuration"`
+			ElapsedTime struct {
+				Friendly string `json:"friendly"`
+				Millis   int    `json:"millis"`
+			} `json:"elapsedTime"`
+			RemainingTime struct {
+				Friendly string `json:"friendly"`
+				Millis   int    `json:"millis"`
+			} `json:"remainingTime"`
+			StartTime struct {
+				Iso8601     string `json:"iso8601"`
+				Jira        string `json:"jira"`
+				Friendly    string `json:"friendly"`
+				EpochMillis int64  `json:"epochMillis"`
+			} `json:"startTime"`
+			BreachTime struct {
+				Iso8601     string `json:"iso8601"`
+				Jira        string `json:"jira"`
+				Friendly    string `json:"friendly"`
+				EpochMillis int64  `json:"epochMillis"`
+			} `json:"breachTime"`
+			Breached            bool `json:"breached"`
+			Paused              bool `json:"paused"`
+			WithinCalendarHours bool `json:"withinCalendarHours"`
+		} `json:"ongoingCycle"`
+		ID    string `json:"id"`
+		Name  string `json:"name"`
+		Links struct {
+			Self string `json:"self"`
+		} `json:"_links"`
+		CompletedCycles []interface{} `json:"completedCycles"`
+	} `json:"customfield_11100"`
+	Status struct {
+		Self           string `json:"self"`
+		Description    string `json:"description"`
+		IconURL        string `json:"iconUrl"`
+		Name           string `json:"name"`
+		ID             string `json:"id"`
+		StatusCategory struct {
+			Self      string `json:"self"`
+			Key       string `json:"key"`
+			ColorName string `json:"colorName"`
+			Name      string `json:"name"`
+			ID        int    `json:"id"`
+		} `json:"statusCategory"`
+	} `json:"status"`
+	Customfield14326 JIRAUser `json:"customfield_14326"`
+	Assignee         JIRAUser `json:"assignee"`
+	Reporter         JIRAUser `json:"reporter"`
+	Creator          JIRAUser `json:"creator"`
+	Project          struct {
+		Self           string `json:"self"`
+		ID             string `json:"id"`
+		Key            string `json:"key"`
+		Name           string `json:"name"`
+		ProjectTypeKey string `json:"projectTypeKey"`
+	} `json:"project"`
+	Security struct {
+		Self        string `json:"self"`
+		ID          string `json:"id"`
+		Description string `json:"description"`
+		Name        string `json:"name"`
+	} `json:"security"`
+	Priority struct {
+		Self    string `json:"self"`
+		IconURL string `json:"iconUrl"`
+		Name    string `json:"name"`
+		ID      string `json:"id"`
+	} `json:"priority"`
+	Summary          string `json:"summary"`
+	Description      string `json:"description"`
+	LastViewed       string `json:"lastViewed"`
+	Updated          string `json:"updated"`
+	Created          string `json:"created"`
+	Customfield10009 struct {
+		Links struct {
+			JiraRest string `json:"jiraRest"`
+			Web      string `json:"web"`
+			Self     string `json:"self"`
+		} `json:"_links"`
+		RequestType struct {
+			ID    string `json:"id"`
+			Links struct {
+				Self string `json:"self"`
+			} `json:"_links"`
+			Name          string   `json:"name"`
+			Description   string   `json:"description"`
+			HelpText      string   `json:"helpText"`
+			ServiceDeskID string   `json:"serviceDeskId"`
+			GroupIds      []string `json:"groupIds"`
+		} `json:"requestType"`
+		CurrentStatus struct {
+			Status     string `json:"status"`
+			StatusDate struct {
+				Iso8601     string `json:"iso8601"`
+				Jira        string `json:"jira"`
+				Friendly    string `json:"friendly"`
+				EpochMillis int64  `json:"epochMillis"`
+			} `json:"statusDate"`
+		} `json:"currentStatus"`
+	} `json:"customfield_10009"`
+	Customfield14342 struct {
+		ID    string `json:"id"`
+		Name  string `json:"name"`
+		Links struct {
+			Self string `json:"self"`
+		} `json:"_links"`
+		CompletedCycles []interface{} `json:"completedCycles"`
+	} `json:"customfield_14342"`
+	Customfield14344 struct {
+		ID    string `json:"id"`
+		Name  string `json:"name"`
+		Links struct {
+			Self string `json:"self"`
+		} `json:"_links"`
+		CompletedCycles []interface{} `json:"completedCycles"`
+	} `json:"customfield_14344"`
+	Customfield11101 struct {
+		ID    string `json:"id"`
+		Name  string `json:"name"`
+		Links struct {
+			Self string `json:"self"`
+		} `json:"_links"`
+		CompletedCycles []struct {
+			GoalDuration struct {
+				Friendly string `json:"friendly"`
+				Millis   int    `json:"millis"`
+			} `json:"goalDuration"`
+			ElapsedTime struct {
+				Friendly string `json:"friendly"`
+				Millis   int    `json:"millis"`
+			} `json:"elapsedTime"`
+			RemainingTime struct {
+				Friendly string `json:"friendly"`
+				Millis   int    `json:"millis"`
+			} `json:"remainingTime"`
+			StartTime struct {
+				Iso8601     string `json:"iso8601"`
+				Jira        string `json:"jira"`
+				Friendly    string `json:"friendly"`
+				EpochMillis int64  `json:"epochMillis"`
+			} `json:"startTime"`
+			StopTime struct {
+				Iso8601     string `json:"iso8601"`
+				Jira        string `json:"jira"`
+				Friendly    string `json:"friendly"`
+				EpochMillis int64  `json:"epochMillis"`
+			} `json:"stopTime"`
+			Breached bool `json:"breached"`
+		} `json:"completedCycles"`
+	} `json:"customfield_11101"`
+	Customfield14343 struct {
+		ID    string `json:"id"`
+		Name  string `json:"name"`
+		Links struct {
+			Self string `json:"self"`
+		} `json:"_links"`
+		CompletedCycles []interface{} `json:"completedCycles"`
+	} `json:"customfield_14343"`
+	Customfield15113 struct {
+		Self     string `json:"self"`
+		Value    string `json:"value"`
+		ID       string `json:"id"`
+		Disabled bool   `json:"disabled"`
+	} `json:"customfield_15113"`
+	Customfield14451 struct {
+		Self     string `json:"self"`
+		Value    string `json:"value"`
+		ID       string `json:"id"`
+		Disabled bool   `json:"disabled"`
+	} `json:"customfield_14451"`
+	Customfield15109 struct {
+		Self     string `json:"self"`
+		Value    string `json:"value"`
+		ID       string `json:"id"`
+		Disabled bool   `json:"disabled"`
+	} `json:"customfield_15109"`
+	Customfield14408 struct {
+		Self     string `json:"self"`
+		Value    string `json:"value"`
+		ID       string `json:"id"`
+		Disabled bool   `json:"disabled"`
+	} `json:"customfield_14408"`
+	Customfield14321 struct {
+		Self     string `json:"self"`
+		Value    string `json:"value"`
+		ID       string `json:"id"`
+		Disabled bool   `json:"disabled"`
+	} `json:"customfield_14321"`
+	Customfield15143 struct {
+		Self     string `json:"self"`
+		Value    string `json:"value"`
+		ID       string `json:"id"`
+		Disabled bool   `json:"disabled"`
+	} `json:"customfield_15143"`
+	Customfield14325 struct {
+		Self     string `json:"self"`
+		Value    string `json:"value"`
+		ID       string `json:"id"`
+		Disabled bool   `json:"disabled"`
+	} `json:"customfield_14325"`
+	Customfield15104 struct {
+		Self     string `json:"self"`
+		Value    string `json:"value"`
+		ID       string `json:"id"`
+		Disabled bool   `json:"disabled"`
+	} `json:"customfield_15104"`
+	Customfield15114 struct {
+		Self     string `json:"self"`
+		Value    string `json:"value"`
+		ID       string `json:"id"`
+		Disabled bool   `json:"disabled"`
+	} `json:"customfield_15114"`
+	Customfield14339 struct {
+		Self     string `json:"self"`
+		Value    string `json:"value"`
+		ID       string `json:"id"`
+		Disabled bool   `json:"disabled"`
+	} `json:"customfield_14339"`
+	Customfield14423 struct {
+		Self     string `json:"self"`
+		Value    string `json:"value"`
+		ID       string `json:"id"`
+		Disabled bool   `json:"disabled"`
+	} `json:"customfield_14423"`
+	Customfield14404 struct {
+		Self     string `json:"self"`
+		Value    string `json:"value"`
+		ID       string `json:"id"`
+		Disabled bool   `json:"disabled"`
+	} `json:"customfield_14404"`
+	Customfield14449 struct {
+		Self     string `json:"self"`
+		Value    string `json:"value"`
+		ID       string `json:"id"`
+		Disabled bool   `json:"disabled"`
+	} `json:"customfield_14449"`
+	Customfield14425 struct {
+		Self     string `json:"self"`
+		Value    string `json:"value"`
+		ID       string `json:"id"`
+		Disabled bool   `json:"disabled"`
+	} `json:"customfield_14425"`
+	Worklog struct {
+		Worklogs   []interface{} `json:"worklogs"`
+		StartAt    int           `json:"startAt"`
+		MaxResults int           `json:"maxResults"`
+		Total      int           `json:"total"`
+	} `json:"worklog"`
+	Versions         []interface{} `json:"versions"`
+	Components       []interface{} `json:"components"`
+	Labels           []interface{} `json:"labels"`
+	Customfield10008 []JIRAUser    `json:"customfield_10008"`
+	Subtasks         []struct {
+		ID     string `json:"id"`
+		Key    string `json:"key"`
+		Self   string `json:"self"`
+		Fields struct {
+			Summary string `json:"summary"`
+			Status  struct {
+				Self           string `json:"self"`
+				Description    string `json:"description"`
+				IconURL        string `json:"iconUrl"`
+				Name           string `json:"name"`
+				ID             string `json:"id"`
+				StatusCategory struct {
+					Self      string `json:"self"`
+					Key       string `json:"key"`
+					ColorName string `json:"colorName"`
+					Name      string `json:"name"`
+					ID        int    `json:"id"`
+				} `json:"statusCategory"`
+			} `json:"status"`
+			Priority struct {
+				Self    string `json:"self"`
+				IconURL string `json:"iconUrl"`
+				Name    string `json:"name"`
+				ID      string `json:"id"`
+			} `json:"priority"`
+			IssueType JIRAIssueType `json:"issuetype"`
+		} `json:"fields"`
+	} `json:"subtasks"`
+	Attachment       []interface{} `json:"attachment"`
+	Customfield15216 []struct {
+		Active bool `json:"active"`
+	} `json:"customfield_15216"`
+	Customfield14336 []struct {
+		Name string `json:"name"`
+		Self string `json:"self"`
+	} `json:"customfield_14336"`
+	Issuelinks       []interface{} `json:"issuelinks"`
+	FixVersions      []interface{} `json:"fixVersions"`
+	Customfield15217 []struct {
+		Active bool `json:"active"`
+	} `json:"customfield_15217"`
+	IssueType JIRAIssueType `json:"issuetype"`
+	Watches   struct {
+		Self       string `json:"self"`
+		WatchCount int    `json:"watchCount"`
+		IsWatching bool   `json:"isWatching"`
+	} `json:"watches"`
+	Votes struct {
+		Self     string `json:"self"`
+		Votes    int    `json:"votes"`
+		HasVoted bool   `json:"hasVoted"`
+	} `json:"votes"`
+	Comment struct {
+		Comments   []interface{} `json:"comments"`
+		MaxResults int           `json:"maxResults"`
+		Total      int           `json:"total"`
+		StartAt    int           `json:"startAt"`
+	} `json:"comment"`
+	Progress struct {
+		Progress int `json:"progress"`
+		Total    int `json:"total"`
+	} `json:"progress"`
+	Aggregateprogress struct {
+		Progress int `json:"progress"`
+		Total    int `json:"total"`
+	} `json:"aggregateprogress"`
+	Workratio int `json:"workratio"`
 }
 
-// https://mholt.github.io/json-to-go/
-type jiraIssue struct {
-	Fields struct {
-		Timetracking struct {
-		} `json:"timetracking"`
-		Aggregatetimeoriginalestimate interface{} `json:"aggregatetimeoriginalestimate"`
-		Resolution                    interface{} `json:"resolution"`
-		Environment                   interface{} `json:"environment"`
-		Duedate                       interface{} `json:"duedate"`
-		Timeestimate                  interface{} `json:"timeestimate"`
-		Aggregatetimeestimate         interface{} `json:"aggregatetimeestimate"`
-		Timespent                     interface{} `json:"timespent"`
-		Aggregatetimespent            interface{} `json:"aggregatetimespent"`
-		Resolutiondate                interface{} `json:"resolutiondate"`
-		Timeoriginalestimate          interface{} `json:"timeoriginalestimate"`
-		MantisID                      string      `json:"customfield_15902"` // MantisID
-		Customfield11100              struct {
-			OngoingCycle struct {
-				GoalDuration struct {
-					Friendly string `json:"friendly"`
-					Millis   int    `json:"millis"`
-				} `json:"goalDuration"`
-				ElapsedTime struct {
-					Friendly string `json:"friendly"`
-					Millis   int    `json:"millis"`
-				} `json:"elapsedTime"`
-				RemainingTime struct {
-					Friendly string `json:"friendly"`
-					Millis   int    `json:"millis"`
-				} `json:"remainingTime"`
-				StartTime struct {
-					Iso8601     string `json:"iso8601"`
-					Jira        string `json:"jira"`
-					Friendly    string `json:"friendly"`
-					EpochMillis int64  `json:"epochMillis"`
-				} `json:"startTime"`
-				BreachTime struct {
-					Iso8601     string `json:"iso8601"`
-					Jira        string `json:"jira"`
-					Friendly    string `json:"friendly"`
-					EpochMillis int64  `json:"epochMillis"`
-				} `json:"breachTime"`
-				Breached            bool `json:"breached"`
-				Paused              bool `json:"paused"`
-				WithinCalendarHours bool `json:"withinCalendarHours"`
-			} `json:"ongoingCycle"`
-			ID    string `json:"id"`
-			Name  string `json:"name"`
-			Links struct {
-				Self string `json:"self"`
-			} `json:"_links"`
-			CompletedCycles []interface{} `json:"completedCycles"`
-		} `json:"customfield_11100"`
-		Status struct {
-			Self           string `json:"self"`
-			Description    string `json:"description"`
-			IconURL        string `json:"iconUrl"`
-			Name           string `json:"name"`
-			ID             string `json:"id"`
-			StatusCategory struct {
-				Self      string `json:"self"`
-				Key       string `json:"key"`
-				ColorName string `json:"colorName"`
-				Name      string `json:"name"`
-				ID        int    `json:"id"`
-			} `json:"statusCategory"`
-		} `json:"status"`
-		Customfield14326 JIRAUser `json:"customfield_14326"`
-		Assignee         JIRAUser `json:"assignee"`
-		Reporter         JIRAUser `json:"reporter"`
-		Creator          JIRAUser `json:"creator"`
-		Project          struct {
-			Self           string `json:"self"`
-			ID             string `json:"id"`
-			Key            string `json:"key"`
-			Name           string `json:"name"`
-			ProjectTypeKey string `json:"projectTypeKey"`
-		} `json:"project"`
-		Security struct {
-			Self        string `json:"self"`
-			ID          string `json:"id"`
-			Description string `json:"description"`
-			Name        string `json:"name"`
-		} `json:"security"`
-		Priority struct {
-			Self    string `json:"self"`
-			IconURL string `json:"iconUrl"`
-			Name    string `json:"name"`
-			ID      string `json:"id"`
-		} `json:"priority"`
-		Summary          string `json:"summary"`
-		Description      string `json:"description"`
-		LastViewed       string `json:"lastViewed"`
-		Updated          string `json:"updated"`
-		Created          string `json:"created"`
-		Customfield10009 struct {
-			Links struct {
-				JiraRest string `json:"jiraRest"`
-				Web      string `json:"web"`
-				Self     string `json:"self"`
-			} `json:"_links"`
-			RequestType struct {
-				ID    string `json:"id"`
-				Links struct {
-					Self string `json:"self"`
-				} `json:"_links"`
-				Name          string   `json:"name"`
-				Description   string   `json:"description"`
-				HelpText      string   `json:"helpText"`
-				ServiceDeskID string   `json:"serviceDeskId"`
-				GroupIds      []string `json:"groupIds"`
-			} `json:"requestType"`
-			CurrentStatus struct {
-				Status     string `json:"status"`
-				StatusDate struct {
-					Iso8601     string `json:"iso8601"`
-					Jira        string `json:"jira"`
-					Friendly    string `json:"friendly"`
-					EpochMillis int64  `json:"epochMillis"`
-				} `json:"statusDate"`
-			} `json:"currentStatus"`
-		} `json:"customfield_10009"`
-		Customfield14342 struct {
-			ID    string `json:"id"`
-			Name  string `json:"name"`
-			Links struct {
-				Self string `json:"self"`
-			} `json:"_links"`
-			CompletedCycles []interface{} `json:"completedCycles"`
-		} `json:"customfield_14342"`
-		Customfield14344 struct {
-			ID    string `json:"id"`
-			Name  string `json:"name"`
-			Links struct {
-				Self string `json:"self"`
-			} `json:"_links"`
-			CompletedCycles []interface{} `json:"completedCycles"`
-		} `json:"customfield_14344"`
-		Customfield11101 struct {
-			ID    string `json:"id"`
-			Name  string `json:"name"`
-			Links struct {
-				Self string `json:"self"`
-			} `json:"_links"`
-			CompletedCycles []struct {
-				GoalDuration struct {
-					Friendly string `json:"friendly"`
-					Millis   int    `json:"millis"`
-				} `json:"goalDuration"`
-				ElapsedTime struct {
-					Friendly string `json:"friendly"`
-					Millis   int    `json:"millis"`
-				} `json:"elapsedTime"`
-				RemainingTime struct {
-					Friendly string `json:"friendly"`
-					Millis   int    `json:"millis"`
-				} `json:"remainingTime"`
-				StartTime struct {
-					Iso8601     string `json:"iso8601"`
-					Jira        string `json:"jira"`
-					Friendly    string `json:"friendly"`
-					EpochMillis int64  `json:"epochMillis"`
-				} `json:"startTime"`
-				StopTime struct {
-					Iso8601     string `json:"iso8601"`
-					Jira        string `json:"jira"`
-					Friendly    string `json:"friendly"`
-					EpochMillis int64  `json:"epochMillis"`
-				} `json:"stopTime"`
-				Breached bool `json:"breached"`
-			} `json:"completedCycles"`
-		} `json:"customfield_11101"`
-		Customfield14343 struct {
-			ID    string `json:"id"`
-			Name  string `json:"name"`
-			Links struct {
-				Self string `json:"self"`
-			} `json:"_links"`
-			CompletedCycles []interface{} `json:"completedCycles"`
-		} `json:"customfield_14343"`
-		Customfield15113 struct {
-			Self     string `json:"self"`
-			Value    string `json:"value"`
-			ID       string `json:"id"`
-			Disabled bool   `json:"disabled"`
-		} `json:"customfield_15113"`
-		Customfield14451 struct {
-			Self     string `json:"self"`
-			Value    string `json:"value"`
-			ID       string `json:"id"`
-			Disabled bool   `json:"disabled"`
-		} `json:"customfield_14451"`
-		Customfield15109 struct {
-			Self     string `json:"self"`
-			Value    string `json:"value"`
-			ID       string `json:"id"`
-			Disabled bool   `json:"disabled"`
-		} `json:"customfield_15109"`
-		Customfield14408 struct {
-			Self     string `json:"self"`
-			Value    string `json:"value"`
-			ID       string `json:"id"`
-			Disabled bool   `json:"disabled"`
-		} `json:"customfield_14408"`
-		Customfield14321 struct {
-			Self     string `json:"self"`
-			Value    string `json:"value"`
-			ID       string `json:"id"`
-			Disabled bool   `json:"disabled"`
-		} `json:"customfield_14321"`
-		Customfield15143 struct {
-			Self     string `json:"self"`
-			Value    string `json:"value"`
-			ID       string `json:"id"`
-			Disabled bool   `json:"disabled"`
-		} `json:"customfield_15143"`
-		Customfield14325 struct {
-			Self     string `json:"self"`
-			Value    string `json:"value"`
-			ID       string `json:"id"`
-			Disabled bool   `json:"disabled"`
-		} `json:"customfield_14325"`
-		Customfield15104 struct {
-			Self     string `json:"self"`
-			Value    string `json:"value"`
-			ID       string `json:"id"`
-			Disabled bool   `json:"disabled"`
-		} `json:"customfield_15104"`
-		Customfield15114 struct {
-			Self     string `json:"self"`
-			Value    string `json:"value"`
-			ID       string `json:"id"`
-			Disabled bool   `json:"disabled"`
-		} `json:"customfield_15114"`
-		Customfield14339 struct {
-			Self     string `json:"self"`
-			Value    string `json:"value"`
-			ID       string `json:"id"`
-			Disabled bool   `json:"disabled"`
-		} `json:"customfield_14339"`
-		Customfield14423 struct {
-			Self     string `json:"self"`
-			Value    string `json:"value"`
-			ID       string `json:"id"`
-			Disabled bool   `json:"disabled"`
-		} `json:"customfield_14423"`
-		Customfield14404 struct {
-			Self     string `json:"self"`
-			Value    string `json:"value"`
-			ID       string `json:"id"`
-			Disabled bool   `json:"disabled"`
-		} `json:"customfield_14404"`
-		Customfield14449 struct {
-			Self     string `json:"self"`
-			Value    string `json:"value"`
-			ID       string `json:"id"`
-			Disabled bool   `json:"disabled"`
-		} `json:"customfield_14449"`
-		Customfield14425 struct {
-			Self     string `json:"self"`
-			Value    string `json:"value"`
-			ID       string `json:"id"`
-			Disabled bool   `json:"disabled"`
-		} `json:"customfield_14425"`
-		Worklog struct {
-			Worklogs   []interface{} `json:"worklogs"`
-			StartAt    int           `json:"startAt"`
-			MaxResults int           `json:"maxResults"`
-			Total      int           `json:"total"`
-		} `json:"worklog"`
-		Versions         []interface{} `json:"versions"`
-		Components       []interface{} `json:"components"`
-		Labels           []interface{} `json:"labels"`
-		Customfield10008 []JIRAUser    `json:"customfield_10008"`
-		Subtasks         []struct {
-			ID     string `json:"id"`
-			Key    string `json:"key"`
-			Self   string `json:"self"`
-			Fields struct {
-				Summary string `json:"summary"`
-				Status  struct {
-					Self           string `json:"self"`
-					Description    string `json:"description"`
-					IconURL        string `json:"iconUrl"`
-					Name           string `json:"name"`
-					ID             string `json:"id"`
-					StatusCategory struct {
-						Self      string `json:"self"`
-						Key       string `json:"key"`
-						ColorName string `json:"colorName"`
-						Name      string `json:"name"`
-						ID        int    `json:"id"`
-					} `json:"statusCategory"`
-				} `json:"status"`
-				Priority struct {
-					Self    string `json:"self"`
-					IconURL string `json:"iconUrl"`
-					Name    string `json:"name"`
-					ID      string `json:"id"`
-				} `json:"priority"`
-				IssueType JIRAIssueType `json:"issuetype"`
-			} `json:"fields"`
-		} `json:"subtasks"`
-		Attachment       []interface{} `json:"attachment"`
-		Customfield15216 []struct {
-			Active bool `json:"active"`
-		} `json:"customfield_15216"`
-		Customfield14336 []struct {
-			Name string `json:"name"`
-			Self string `json:"self"`
-		} `json:"customfield_14336"`
-		Issuelinks       []interface{} `json:"issuelinks"`
-		FixVersions      []interface{} `json:"fixVersions"`
-		Customfield15217 []struct {
-			Active bool `json:"active"`
-		} `json:"customfield_15217"`
-		IssueType JIRAIssueType `json:"issuetype"`
-		Watches   struct {
-			Self       string `json:"self"`
-			WatchCount int    `json:"watchCount"`
-			IsWatching bool   `json:"isWatching"`
-		} `json:"watches"`
-		Votes struct {
-			Self     string `json:"self"`
-			Votes    int    `json:"votes"`
-			HasVoted bool   `json:"hasVoted"`
-		} `json:"votes"`
-		Comment struct {
-			Comments   []interface{} `json:"comments"`
-			MaxResults int           `json:"maxResults"`
-			Total      int           `json:"total"`
-			StartAt    int           `json:"startAt"`
-		} `json:"comment"`
-		Progress struct {
-			Progress int `json:"progress"`
-			Total    int `json:"total"`
-		} `json:"progress"`
-		Aggregateprogress struct {
-			Progress int `json:"progress"`
-			Total    int `json:"total"`
-		} `json:"aggregateprogress"`
-		Workratio int `json:"workratio"`
-	} `json:"fields"`
-	Expand string `json:"expand"`
-	ID     string `json:"id"`
-	Self   string `json:"self"`
-	Key    string `json:"key"`
+type jiraIssueFields struct {
+	jiraFields
+	customFields
 }
 
 type customFields map[string]json.RawMessage
 
-func (issue *JIRAIssue) UnmarshalJSON(b []byte) error {
-	if err := json.Unmarshal(b, &issue.jiraIssue); err != nil {
+func (issue *jiraIssueFields) UnmarshalJSON(b []byte) error {
+	if err := json.Unmarshal(b, &issue.jiraFields); err != nil {
 		return err
 	}
 	if err := json.Unmarshal(b, &issue.customFields); err != nil {
@@ -413,8 +414,8 @@ func (issue *JIRAIssue) UnmarshalJSON(b []byte) error {
 	}
 	return nil
 }
-func (issue JIRAIssue) MarshalJSON() ([]byte, error) {
-	b, err := json.Marshal(issue.jiraIssue)
+func (issue jiraIssueFields) MarshalJSON() ([]byte, error) {
+	b, err := json.Marshal(issue.jiraFields)
 	b = bytes.TrimSpace(b)
 	if err != nil || len(b) == 0 || len(issue.customFields) == 0 {
 		return b, err
