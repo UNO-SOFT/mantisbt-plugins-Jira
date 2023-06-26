@@ -144,11 +144,11 @@ func Main() error {
 	}
 	fs = flag.NewFlagSet("jira", flag.ContinueOnError)
 	flagBaseURL := fs.String("jira-base", DefaultJiraURL, "JIRA base URL (with basic auth!)")
-	flagJiraUser := fs.String("jira-user", "", "service user")
-	flagJiraPassword := fs.String("jira-password", "", "service password")
+	flagJiraUser := fs.String("jira-user", os.Getenv("SVC_USER"), "service user")
+	flagJiraPassword := fs.String("jira-password", os.Getenv("SVC_PASSWORD"), "service password")
 	flagTimeout := fs.Duration("timeout", 30*time.Second, "timeout")
-	flagBasicUser := fs.String("basic-user", "", "JIRA user")
-	flagBasicPassword := fs.String("basic-password", "", "JIRA password")
+	flagBasicUser := fs.String("basic-user", os.Getenv("JIRA_USER"), "JIRA user")
+	flagBasicPassword := fs.String("basic-password", os.Getenv("JIRA_PASSWORD"), "JIRA password")
 	fs.Var(&verbose, "v", "verbose logging")
 	ucd, err := os.UserConfigDir()
 	if err != nil {
