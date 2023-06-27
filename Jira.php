@@ -86,6 +86,14 @@ class JiraPlugin extends MantisPlugin {
 			return;
 		}
 
+		$t_mantis_id = trim(
+			$this->call("issue", "mantisID", $t_issueid )[1]
+		);
+		if( $t_mantis_id != $p_bug_id ) {
+			$this->log("mantisID=$t_mantis_id bugID=$p_bug_id");
+			return;
+		}
+
 		$t_bugnote = null;
 		if( $p_bugnote_id ) {
 			$t_bugnote = bugnote_get( $p_bugnote_id );
@@ -175,12 +183,13 @@ $this->log( 'comment added' );
 				2 => array("pipe", "w"),  // stderr
 			),
 			$t_pipes, '/' );
+		$t_stdout = stream_get_contents( $t_pipes[1] );
 		fclose( $t_pipes[1] );
 		$t_stderr = stream_get_contents( $t_pipes[2] );
 		fclose( $t_pipes[2] );
 		$t_rc = proc_close( $t_process );
 		$this->log('got ' . $t_rc . ': stderr=' . var_export( $t_stderr, TRUE ) );
-		return $t_rc;
+		return array( $t_rc, $t_stdout );
 	}
 
 	function log( $p_text ) {
