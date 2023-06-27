@@ -87,7 +87,7 @@ class JiraPlugin extends MantisPlugin {
 		}
 
 		$t_mantis_id = trim(
-			$this->call("issue", "mantisID", $t_issueid )[1]
+			$this->call("issue", array( "mantisID", $t_issueid ) )[1]
 		);
 		if( $t_mantis_id != $p_bug_id ) {
 			$this->log("mantisID=$t_mantis_id bugID=$p_bug_id");
