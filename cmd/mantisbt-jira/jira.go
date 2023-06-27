@@ -35,385 +35,403 @@ type Jira struct {
 }
 
 type JIRAIssueType struct {
-	Self        string `json:"self"`
-	ID          string `json:"id"`
-	Description string `json:"description"`
-	IconURL     string `json:"iconUrl"`
-	Name        string `json:"name"`
-	Subtask     bool   `json:"subtask"`
-	AvatarID    int    `json:"avatarId"`
+	Self        string `json:"self,omitempty"`
+	ID          string `json:"id,omitempty"`
+	Description string `json:"description,omitempty"`
+	IconURL     string `json:"iconUrl,omitempty"`
+	Name        string `json:"name,omitempty"`
+	Subtask     bool   `json:"subtask,omitempty"`
+	AvatarID    int    `json:"avatarId,omitempty"`
 }
 
 // https://mholt.github.io/json-to-go/
 type JIRAIssue struct {
-	Fields jiraIssueFields `json:"fields"`
-	Expand string          `json:"expand"`
-	ID     string          `json:"id"`
-	Self   string          `json:"self"`
-	Key    string          `json:"key"`
+	Fields jiraIssueFields `json:"fields,omitempty"`
+	Expand string          `json:"expand,omitempty"`
+	ID     string          `json:"id,omitempty"`
+	Self   string          `json:"self,omitempty"`
+	Key    string          `json:"key,omitempty"`
 }
-type jiraFields struct {
+type JiraFields struct {
 	Timetracking struct {
-	} `json:"timetracking"`
-	Aggregatetimeoriginalestimate interface{} `json:"aggregatetimeoriginalestimate"`
-	Resolution                    interface{} `json:"resolution"`
-	Environment                   interface{} `json:"environment"`
-	Duedate                       interface{} `json:"duedate"`
-	Timeestimate                  interface{} `json:"timeestimate"`
-	Aggregatetimeestimate         interface{} `json:"aggregatetimeestimate"`
-	Timespent                     interface{} `json:"timespent"`
-	Aggregatetimespent            interface{} `json:"aggregatetimespent"`
-	Resolutiondate                interface{} `json:"resolutiondate"`
-	Timeoriginalestimate          interface{} `json:"timeoriginalestimate"`
-	MantisID                      string      `json:"customfield_15902"` // MantisID
+	} `json:"timetracking,omitempty"`
+	Aggregatetimeoriginalestimate interface{} `json:"aggregatetimeoriginalestimate,omitempty"`
+	Resolution                    interface{} `json:"resolution,omitempty"`
+	Environment                   interface{} `json:"environment,omitempty"`
+	Duedate                       interface{} `json:"duedate,omitempty"`
+	Timeestimate                  interface{} `json:"timeestimate,omitempty"`
+	Aggregatetimeestimate         interface{} `json:"aggregatetimeestimate,omitempty"`
+	Timespent                     interface{} `json:"timespent,omitempty"`
+	Aggregatetimespent            interface{} `json:"aggregatetimespent,omitempty"`
+	Resolutiondate                interface{} `json:"resolutiondate,omitempty"`
+	Timeoriginalestimate          interface{} `json:"timeoriginalestimate,omitempty"`
+	MantisID                      string      `json:"customfield_15902"` // Mantis,omitemptyID
 	Customfield11100              struct {
 		OngoingCycle struct {
 			GoalDuration struct {
-				Friendly string `json:"friendly"`
-				Millis   int    `json:"millis"`
-			} `json:"goalDuration"`
+				Friendly string `json:"friendly,omitempty"`
+				Millis   int    `json:"millis,omitempty"`
+			} `json:"goalDuration,omitempty"`
 			ElapsedTime struct {
-				Friendly string `json:"friendly"`
-				Millis   int    `json:"millis"`
-			} `json:"elapsedTime"`
+				Friendly string `json:"friendly,omitempty"`
+				Millis   int    `json:"millis,omitempty"`
+			} `json:"elapsedTime,omitempty"`
 			RemainingTime struct {
-				Friendly string `json:"friendly"`
-				Millis   int    `json:"millis"`
-			} `json:"remainingTime"`
+				Friendly string `json:"friendly,omitempty"`
+				Millis   int    `json:"millis,omitempty"`
+			} `json:"remainingTime,omitempty"`
 			StartTime struct {
-				Iso8601     string `json:"iso8601"`
-				Jira        string `json:"jira"`
-				Friendly    string `json:"friendly"`
-				EpochMillis int64  `json:"epochMillis"`
-			} `json:"startTime"`
+				Iso8601     string `json:"iso8601,omitempty"`
+				Jira        string `json:"jira,omitempty"`
+				Friendly    string `json:"friendly,omitempty"`
+				EpochMillis int64  `json:"epochMillis,omitempty"`
+			} `json:"startTime,omitempty"`
 			BreachTime struct {
-				Iso8601     string `json:"iso8601"`
-				Jira        string `json:"jira"`
-				Friendly    string `json:"friendly"`
-				EpochMillis int64  `json:"epochMillis"`
-			} `json:"breachTime"`
-			Breached            bool `json:"breached"`
-			Paused              bool `json:"paused"`
-			WithinCalendarHours bool `json:"withinCalendarHours"`
-		} `json:"ongoingCycle"`
-		ID    string `json:"id"`
-		Name  string `json:"name"`
+				Iso8601     string `json:"iso8601,omitempty"`
+				Jira        string `json:"jira,omitempty"`
+				Friendly    string `json:"friendly,omitempty"`
+				EpochMillis int64  `json:"epochMillis,omitempty"`
+			} `json:"breachTime,omitempty"`
+			Breached            bool `json:"breached,omitempty"`
+			Paused              bool `json:"paused,omitempty"`
+			WithinCalendarHours bool `json:"withinCalendarHours,omitempty"`
+		} `json:"ongoingCycle,omitempty"`
+		ID    string `json:"id,omitempty"`
+		Name  string `json:"name,omitempty"`
 		Links struct {
-			Self string `json:"self"`
-		} `json:"_links"`
-		CompletedCycles []interface{} `json:"completedCycles"`
-	} `json:"customfield_11100"`
+			Self string `json:"self,omitempty"`
+		} `json:"_links,omitempty"`
+		CompletedCycles []interface{} `json:"completedCycles,omitempty"`
+	} `json:"customfield_11100,omitempty"`
 	Status struct {
-		Self           string `json:"self"`
-		Description    string `json:"description"`
-		IconURL        string `json:"iconUrl"`
-		Name           string `json:"name"`
-		ID             string `json:"id"`
+		Self           string `json:"self,omitempty"`
+		Description    string `json:"description,omitempty"`
+		IconURL        string `json:"iconUrl,omitempty"`
+		Name           string `json:"name,omitempty"`
+		ID             string `json:"id,omitempty"`
 		StatusCategory struct {
-			Self      string `json:"self"`
-			Key       string `json:"key"`
-			ColorName string `json:"colorName"`
-			Name      string `json:"name"`
-			ID        int    `json:"id"`
-		} `json:"statusCategory"`
-	} `json:"status"`
-	Customfield14326 JIRAUser `json:"customfield_14326"`
-	Assignee         JIRAUser `json:"assignee"`
-	Reporter         JIRAUser `json:"reporter"`
-	Creator          JIRAUser `json:"creator"`
+			Self      string `json:"self,omitempty"`
+			Key       string `json:"key,omitempty"`
+			ColorName string `json:"colorName,omitempty"`
+			Name      string `json:"name,omitempty"`
+			ID        int    `json:"id,omitempty"`
+		} `json:"statusCategory,omitempty"`
+	} `json:"status,omitempty"`
+	Customfield14326 JIRAUser `json:"customfield_14326,omitempty"`
+	Assignee         JIRAUser `json:"assignee,omitempty"`
+	Reporter         JIRAUser `json:"reporter,omitempty"`
+	Creator          JIRAUser `json:"creator,omitempty"`
 	Project          struct {
-		Self           string `json:"self"`
-		ID             string `json:"id"`
-		Key            string `json:"key"`
-		Name           string `json:"name"`
-		ProjectTypeKey string `json:"projectTypeKey"`
-	} `json:"project"`
+		Self           string `json:"self,omitempty"`
+		ID             string `json:"id,omitempty"`
+		Key            string `json:"key,omitempty"`
+		Name           string `json:"name,omitempty"`
+		ProjectTypeKey string `json:"projectTypeKey,omitempty"`
+	} `json:"project,omitempty"`
 	Security struct {
-		Self        string `json:"self"`
-		ID          string `json:"id"`
-		Description string `json:"description"`
-		Name        string `json:"name"`
-	} `json:"security"`
+		Self        string `json:"self,omitempty"`
+		ID          string `json:"id,omitempty"`
+		Description string `json:"description,omitempty"`
+		Name        string `json:"name,omitempty"`
+	} `json:"security,omitempty"`
 	Priority struct {
-		Self    string `json:"self"`
-		IconURL string `json:"iconUrl"`
-		Name    string `json:"name"`
-		ID      string `json:"id"`
-	} `json:"priority"`
-	Summary          string `json:"summary"`
-	Description      string `json:"description"`
-	LastViewed       string `json:"lastViewed"`
-	Updated          string `json:"updated"`
-	Created          string `json:"created"`
+		Self    string `json:"self,omitempty"`
+		IconURL string `json:"iconUrl,omitempty"`
+		Name    string `json:"name,omitempty"`
+		ID      string `json:"id,omitempty"`
+	} `json:"priority,omitempty"`
+	Summary          string `json:"summary,omitempty"`
+	Description      string `json:"description,omitempty"`
+	LastViewed       string `json:"lastViewed,omitempty"`
+	Updated          string `json:"updated,omitempty"`
+	Created          string `json:"created,omitempty"`
 	Customfield10009 struct {
 		Links struct {
-			JiraRest string `json:"jiraRest"`
-			Web      string `json:"web"`
-			Self     string `json:"self"`
-		} `json:"_links"`
+			JiraRest string `json:"jiraRest,omitempty"`
+			Web      string `json:"web,omitempty"`
+			Self     string `json:"self,omitempty"`
+		} `json:"_links,omitempty"`
 		RequestType struct {
-			ID    string `json:"id"`
+			ID    string `json:"id,omitempty"`
 			Links struct {
-				Self string `json:"self"`
-			} `json:"_links"`
-			Name          string   `json:"name"`
-			Description   string   `json:"description"`
-			HelpText      string   `json:"helpText"`
-			ServiceDeskID string   `json:"serviceDeskId"`
-			GroupIds      []string `json:"groupIds"`
-		} `json:"requestType"`
+				Self string `json:"self,omitempty"`
+			} `json:"_links,omitempty"`
+			Name          string   `json:"name,omitempty"`
+			Description   string   `json:"description,omitempty"`
+			HelpText      string   `json:"helpText,omitempty"`
+			ServiceDeskID string   `json:"serviceDeskId,omitempty"`
+			GroupIds      []string `json:"groupIds,omitempty"`
+		} `json:"requestType,omitempty"`
 		CurrentStatus struct {
-			Status     string `json:"status"`
+			Status     string `json:"status,omitempty"`
 			StatusDate struct {
-				Iso8601     string `json:"iso8601"`
-				Jira        string `json:"jira"`
-				Friendly    string `json:"friendly"`
-				EpochMillis int64  `json:"epochMillis"`
-			} `json:"statusDate"`
-		} `json:"currentStatus"`
-	} `json:"customfield_10009"`
+				Iso8601     string `json:"iso8601,omitempty"`
+				Jira        string `json:"jira,omitempty"`
+				Friendly    string `json:"friendly,omitempty"`
+				EpochMillis int64  `json:"epochMillis,omitempty"`
+			} `json:"statusDate,omitempty"`
+		} `json:"currentStatus,omitempty"`
+	} `json:"customfield_10009,omitempty"`
 	Customfield14342 struct {
-		ID    string `json:"id"`
-		Name  string `json:"name"`
+		ID    string `json:"id,omitempty"`
+		Name  string `json:"name,omitempty"`
 		Links struct {
-			Self string `json:"self"`
-		} `json:"_links"`
-		CompletedCycles []interface{} `json:"completedCycles"`
-	} `json:"customfield_14342"`
+			Self string `json:"self,omitempty"`
+		} `json:"_links,omitempty"`
+		CompletedCycles []interface{} `json:"completedCycles,omitempty"`
+	} `json:"customfield_14342,omitempty"`
 	Customfield14344 struct {
-		ID    string `json:"id"`
-		Name  string `json:"name"`
+		ID    string `json:"id,omitempty"`
+		Name  string `json:"name,omitempty"`
 		Links struct {
-			Self string `json:"self"`
-		} `json:"_links"`
-		CompletedCycles []interface{} `json:"completedCycles"`
-	} `json:"customfield_14344"`
+			Self string `json:"self,omitempty"`
+		} `json:"_links,omitempty"`
+		CompletedCycles []interface{} `json:"completedCycles,omitempty"`
+	} `json:"customfield_14344,omitempty"`
 	Customfield11101 struct {
-		ID    string `json:"id"`
-		Name  string `json:"name"`
+		ID    string `json:"id,omitempty"`
+		Name  string `json:"name,omitempty"`
 		Links struct {
-			Self string `json:"self"`
-		} `json:"_links"`
+			Self string `json:"self,omitempty"`
+		} `json:"_links,omitempty"`
 		CompletedCycles []struct {
 			GoalDuration struct {
-				Friendly string `json:"friendly"`
-				Millis   int    `json:"millis"`
-			} `json:"goalDuration"`
+				Friendly string `json:"friendly,omitempty"`
+				Millis   int    `json:"millis,omitempty"`
+			} `json:"goalDuration,omitempty"`
 			ElapsedTime struct {
-				Friendly string `json:"friendly"`
-				Millis   int    `json:"millis"`
-			} `json:"elapsedTime"`
+				Friendly string `json:"friendly,omitempty"`
+				Millis   int    `json:"millis,omitempty"`
+			} `json:"elapsedTime,omitempty"`
 			RemainingTime struct {
-				Friendly string `json:"friendly"`
-				Millis   int    `json:"millis"`
-			} `json:"remainingTime"`
+				Friendly string `json:"friendly,omitempty"`
+				Millis   int    `json:"millis,omitempty"`
+			} `json:"remainingTime,omitempty"`
 			StartTime struct {
-				Iso8601     string `json:"iso8601"`
-				Jira        string `json:"jira"`
-				Friendly    string `json:"friendly"`
-				EpochMillis int64  `json:"epochMillis"`
-			} `json:"startTime"`
+				Iso8601     string `json:"iso8601,omitempty"`
+				Jira        string `json:"jira,omitempty"`
+				Friendly    string `json:"friendly,omitempty"`
+				EpochMillis int64  `json:"epochMillis,omitempty"`
+			} `json:"startTime,omitempty"`
 			StopTime struct {
-				Iso8601     string `json:"iso8601"`
-				Jira        string `json:"jira"`
-				Friendly    string `json:"friendly"`
-				EpochMillis int64  `json:"epochMillis"`
-			} `json:"stopTime"`
-			Breached bool `json:"breached"`
-		} `json:"completedCycles"`
-	} `json:"customfield_11101"`
+				Iso8601     string `json:"iso8601,omitempty"`
+				Jira        string `json:"jira,omitempty"`
+				Friendly    string `json:"friendly,omitempty"`
+				EpochMillis int64  `json:"epochMillis,omitempty"`
+			} `json:"stopTime,omitempty"`
+			Breached bool `json:"breached,omitempty"`
+		} `json:"completedCycles,omitempty"`
+	} `json:"customfield_11101,omitempty"`
 	Customfield14343 struct {
-		ID    string `json:"id"`
-		Name  string `json:"name"`
+		ID    string `json:"id,omitempty"`
+		Name  string `json:"name,omitempty"`
 		Links struct {
-			Self string `json:"self"`
-		} `json:"_links"`
-		CompletedCycles []interface{} `json:"completedCycles"`
-	} `json:"customfield_14343"`
+			Self string `json:"self,omitempty"`
+		} `json:"_links,omitempty"`
+		CompletedCycles []interface{} `json:"completedCycles,omitempty"`
+	} `json:"customfield_14343,omitempty"`
 	Customfield15113 struct {
-		Self     string `json:"self"`
-		Value    string `json:"value"`
-		ID       string `json:"id"`
-		Disabled bool   `json:"disabled"`
-	} `json:"customfield_15113"`
+		Self     string `json:"self,omitempty"`
+		Value    string `json:"value,omitempty"`
+		ID       string `json:"id,omitempty"`
+		Disabled bool   `json:"disabled,omitempty"`
+	} `json:"customfield_15113,omitempty"`
 	Customfield14451 struct {
-		Self     string `json:"self"`
-		Value    string `json:"value"`
-		ID       string `json:"id"`
-		Disabled bool   `json:"disabled"`
-	} `json:"customfield_14451"`
+		Self     string `json:"self,omitempty"`
+		Value    string `json:"value,omitempty"`
+		ID       string `json:"id,omitempty"`
+		Disabled bool   `json:"disabled,omitempty"`
+	} `json:"customfield_14451,omitempty"`
 	Customfield15109 struct {
-		Self     string `json:"self"`
-		Value    string `json:"value"`
-		ID       string `json:"id"`
-		Disabled bool   `json:"disabled"`
-	} `json:"customfield_15109"`
+		Self     string `json:"self,omitempty"`
+		Value    string `json:"value,omitempty"`
+		ID       string `json:"id,omitempty"`
+		Disabled bool   `json:"disabled,omitempty"`
+	} `json:"customfield_15109,omitempty"`
 	Customfield14408 struct {
-		Self     string `json:"self"`
-		Value    string `json:"value"`
-		ID       string `json:"id"`
-		Disabled bool   `json:"disabled"`
-	} `json:"customfield_14408"`
+		Self     string `json:"self,omitempty"`
+		Value    string `json:"value,omitempty"`
+		ID       string `json:"id,omitempty"`
+		Disabled bool   `json:"disabled,omitempty"`
+	} `json:"customfield_14408,omitempty"`
 	Customfield14321 struct {
-		Self     string `json:"self"`
-		Value    string `json:"value"`
-		ID       string `json:"id"`
-		Disabled bool   `json:"disabled"`
-	} `json:"customfield_14321"`
+		Self     string `json:"self,omitempty"`
+		Value    string `json:"value,omitempty"`
+		ID       string `json:"id,omitempty"`
+		Disabled bool   `json:"disabled,omitempty"`
+	} `json:"customfield_14321,omitempty"`
 	Customfield15143 struct {
-		Self     string `json:"self"`
-		Value    string `json:"value"`
-		ID       string `json:"id"`
-		Disabled bool   `json:"disabled"`
-	} `json:"customfield_15143"`
+		Self     string `json:"self,omitempty"`
+		Value    string `json:"value,omitempty"`
+		ID       string `json:"id,omitempty"`
+		Disabled bool   `json:"disabled,omitempty"`
+	} `json:"customfield_15143,omitempty"`
 	Customfield14325 struct {
-		Self     string `json:"self"`
-		Value    string `json:"value"`
-		ID       string `json:"id"`
-		Disabled bool   `json:"disabled"`
-	} `json:"customfield_14325"`
+		Self     string `json:"self,omitempty"`
+		Value    string `json:"value,omitempty"`
+		ID       string `json:"id,omitempty"`
+		Disabled bool   `json:"disabled,omitempty"`
+	} `json:"customfield_14325,omitempty"`
 	Customfield15104 struct {
-		Self     string `json:"self"`
-		Value    string `json:"value"`
-		ID       string `json:"id"`
-		Disabled bool   `json:"disabled"`
-	} `json:"customfield_15104"`
+		Self     string `json:"self,omitempty"`
+		Value    string `json:"value,omitempty"`
+		ID       string `json:"id,omitempty"`
+		Disabled bool   `json:"disabled,omitempty"`
+	} `json:"customfield_15104,omitempty"`
 	Customfield15114 struct {
-		Self     string `json:"self"`
-		Value    string `json:"value"`
-		ID       string `json:"id"`
-		Disabled bool   `json:"disabled"`
-	} `json:"customfield_15114"`
+		Self     string `json:"self,omitempty"`
+		Value    string `json:"value,omitempty"`
+		ID       string `json:"id,omitempty"`
+		Disabled bool   `json:"disabled,omitempty"`
+	} `json:"customfield_15114,omitempty"`
 	Customfield14339 struct {
-		Self     string `json:"self"`
-		Value    string `json:"value"`
-		ID       string `json:"id"`
-		Disabled bool   `json:"disabled"`
-	} `json:"customfield_14339"`
+		Self     string `json:"self,omitempty"`
+		Value    string `json:"value,omitempty"`
+		ID       string `json:"id,omitempty"`
+		Disabled bool   `json:"disabled,omitempty"`
+	} `json:"customfield_14339,omitempty"`
 	Customfield14423 struct {
-		Self     string `json:"self"`
-		Value    string `json:"value"`
-		ID       string `json:"id"`
-		Disabled bool   `json:"disabled"`
-	} `json:"customfield_14423"`
+		Self     string `json:"self,omitempty"`
+		Value    string `json:"value,omitempty"`
+		ID       string `json:"id,omitempty"`
+		Disabled bool   `json:"disabled,omitempty"`
+	} `json:"customfield_14423,omitempty"`
 	Customfield14404 struct {
-		Self     string `json:"self"`
-		Value    string `json:"value"`
-		ID       string `json:"id"`
-		Disabled bool   `json:"disabled"`
-	} `json:"customfield_14404"`
+		Self     string `json:"self,omitempty"`
+		Value    string `json:"value,omitempty"`
+		ID       string `json:"id,omitempty"`
+		Disabled bool   `json:"disabled,omitempty"`
+	} `json:"customfield_14404,omitempty"`
 	Customfield14449 struct {
-		Self     string `json:"self"`
-		Value    string `json:"value"`
-		ID       string `json:"id"`
-		Disabled bool   `json:"disabled"`
-	} `json:"customfield_14449"`
+		Self     string `json:"self,omitempty"`
+		Value    string `json:"value,omitempty"`
+		ID       string `json:"id,omitempty"`
+		Disabled bool   `json:"disabled,omitempty"`
+	} `json:"customfield_14449,omitempty"`
 	Customfield14425 struct {
-		Self     string `json:"self"`
-		Value    string `json:"value"`
-		ID       string `json:"id"`
-		Disabled bool   `json:"disabled"`
-	} `json:"customfield_14425"`
+		Self     string `json:"self,omitempty"`
+		Value    string `json:"value,omitempty"`
+		ID       string `json:"id,omitempty"`
+		Disabled bool   `json:"disabled,omitempty"`
+	} `json:"customfield_14425,omitempty"`
 	Worklog struct {
-		Worklogs   []interface{} `json:"worklogs"`
-		StartAt    int           `json:"startAt"`
-		MaxResults int           `json:"maxResults"`
-		Total      int           `json:"total"`
-	} `json:"worklog"`
-	Versions         []interface{} `json:"versions"`
-	Components       []interface{} `json:"components"`
-	Labels           []interface{} `json:"labels"`
-	Customfield10008 []JIRAUser    `json:"customfield_10008"`
+		Worklogs   []interface{} `json:"worklogs,omitempty"`
+		StartAt    int           `json:"startAt,omitempty"`
+		MaxResults int           `json:"maxResults,omitempty"`
+		Total      int           `json:"total,omitempty"`
+	} `json:"worklog,omitempty"`
+	Versions         []interface{} `json:"versions,omitempty"`
+	Components       []interface{} `json:"components,omitempty"`
+	Labels           []interface{} `json:"labels,omitempty"`
+	Customfield10008 []JIRAUser    `json:"customfield_10008,omitempty"`
 	Subtasks         []struct {
-		ID     string `json:"id"`
-		Key    string `json:"key"`
-		Self   string `json:"self"`
+		ID     string `json:"id,omitempty"`
+		Key    string `json:"key,omitempty"`
+		Self   string `json:"self,omitempty"`
 		Fields struct {
-			Summary string `json:"summary"`
+			Summary string `json:"summary,omitempty"`
 			Status  struct {
-				Self           string `json:"self"`
-				Description    string `json:"description"`
-				IconURL        string `json:"iconUrl"`
-				Name           string `json:"name"`
-				ID             string `json:"id"`
+				Self           string `json:"self,omitempty"`
+				Description    string `json:"description,omitempty"`
+				IconURL        string `json:"iconUrl,omitempty"`
+				Name           string `json:"name,omitempty"`
+				ID             string `json:"id,omitempty"`
 				StatusCategory struct {
-					Self      string `json:"self"`
-					Key       string `json:"key"`
-					ColorName string `json:"colorName"`
-					Name      string `json:"name"`
-					ID        int    `json:"id"`
-				} `json:"statusCategory"`
-			} `json:"status"`
+					Self      string `json:"self,omitempty"`
+					Key       string `json:"key,omitempty"`
+					ColorName string `json:"colorName,omitempty"`
+					Name      string `json:"name,omitempty"`
+					ID        int    `json:"id,omitempty"`
+				} `json:"statusCategory,omitempty"`
+			} `json:"status,omitempty"`
 			Priority struct {
-				Self    string `json:"self"`
-				IconURL string `json:"iconUrl"`
-				Name    string `json:"name"`
-				ID      string `json:"id"`
-			} `json:"priority"`
-			IssueType JIRAIssueType `json:"issuetype"`
-		} `json:"fields"`
-	} `json:"subtasks"`
-	Attachment       []interface{} `json:"attachment"`
+				Self    string `json:"self,omitempty"`
+				IconURL string `json:"iconUrl,omitempty"`
+				Name    string `json:"name,omitempty"`
+				ID      string `json:"id,omitempty"`
+			} `json:"priority,omitempty"`
+			IssueType JIRAIssueType `json:"issuetype,omitempty"`
+		} `json:"fields,omitempty"`
+	} `json:"subtasks,omitempty"`
+	Attachment       []interface{} `json:"attachment,omitempty"`
 	Customfield15216 []struct {
-		Active bool `json:"active"`
-	} `json:"customfield_15216"`
+		Active bool `json:"active,omitempty"`
+	} `json:"customfield_15216,omitempty"`
 	Customfield14336 []struct {
-		Name string `json:"name"`
-		Self string `json:"self"`
-	} `json:"customfield_14336"`
-	Issuelinks       []interface{} `json:"issuelinks"`
-	FixVersions      []interface{} `json:"fixVersions"`
+		Name string `json:"name,omitempty"`
+		Self string `json:"self,omitempty"`
+	} `json:"customfield_14336,omitempty"`
+	Issuelinks       []interface{} `json:"issuelinks,omitempty"`
+	FixVersions      []interface{} `json:"fixVersions,omitempty"`
 	Customfield15217 []struct {
-		Active bool `json:"active"`
-	} `json:"customfield_15217"`
-	IssueType JIRAIssueType `json:"issuetype"`
+		Active bool `json:"active,omitempty"`
+	} `json:"customfield_15217,omitempty"`
+	IssueType JIRAIssueType `json:"issuetype,omitempty"`
 	Watches   struct {
-		Self       string `json:"self"`
-		WatchCount int    `json:"watchCount"`
-		IsWatching bool   `json:"isWatching"`
-	} `json:"watches"`
+		Self       string `json:"self,omitempty"`
+		WatchCount int    `json:"watchCount,omitempty"`
+		IsWatching bool   `json:"isWatching,omitempty"`
+	} `json:"watches,omitempty"`
 	Votes struct {
-		Self     string `json:"self"`
-		Votes    int    `json:"votes"`
-		HasVoted bool   `json:"hasVoted"`
-	} `json:"votes"`
+		Self     string `json:"self,omitempty"`
+		Votes    int    `json:"votes,omitempty"`
+		HasVoted bool   `json:"hasVoted,omitempty"`
+	} `json:"votes,omitempty"`
 	Comment struct {
-		Comments   []interface{} `json:"comments"`
-		MaxResults int           `json:"maxResults"`
-		Total      int           `json:"total"`
-		StartAt    int           `json:"startAt"`
-	} `json:"comment"`
+		Comments   []interface{} `json:"comments,omitempty"`
+		MaxResults int           `json:"maxResults,omitempty"`
+		Total      int           `json:"total,omitempty"`
+		StartAt    int           `json:"startAt,omitempty"`
+	} `json:"comment,omitempty"`
 	Progress struct {
-		Progress int `json:"progress"`
-		Total    int `json:"total"`
-	} `json:"progress"`
+		Progress int `json:"progress,omitempty"`
+		Total    int `json:"total,omitempty"`
+	} `json:"progress,omitempty"`
 	Aggregateprogress struct {
-		Progress int `json:"progress"`
-		Total    int `json:"total"`
-	} `json:"aggregateprogress"`
-	Workratio int `json:"workratio"`
+		Progress int `json:"progress,omitempty"`
+		Total    int `json:"total,omitempty"`
+	} `json:"aggregateprogress,omitempty"`
+	Workratio int `json:"workratio,omitempty"`
 }
 
 type jiraIssueFields struct {
-	jiraFields
-	customFields
+	JiraFields
+	CustomFields
 }
 
-type customFields map[string]json.RawMessage
+func (ji JIRAIssue) String() string {
+	var buf strings.Builder
+	enc := json.NewEncoder(&buf)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(ji); err != nil {
+		panic(err)
+	}
+	return buf.String()
+}
+
+type CustomFields map[string]json.RawMessage
+
+func (cf CustomFields) String() string {
+	var buf strings.Builder
+	enc := json.NewEncoder(&buf)
+	enc.SetIndent("", "  ")
+	enc.Encode(cf)
+	return buf.String()
+}
 
 var jiraIssueFieldsOnce sync.Once
 var jiraIssueFieldsAlreadyStored map[string]struct{}
 
 func (issue *jiraIssueFields) UnmarshalJSON(b []byte) error {
-	if err := json.Unmarshal(b, &issue.jiraFields); err != nil {
+	if err := json.Unmarshal(b, &issue.JiraFields); err != nil {
 		return err
 	}
-	if err := json.Unmarshal(b, &issue.customFields); err != nil {
+	if err := json.Unmarshal(b, &issue.CustomFields); err != nil {
 		return err
 	}
 	const customFieldPrefix = "customfield_"
 	jiraIssueFieldsOnce.Do(func() {
-		t := reflect.TypeOf(jiraFields{})
+		t := reflect.TypeOf(JiraFields{})
 		jiraIssueFieldsAlreadyStored = make(map[string]struct{})
 		for i, n := 0, t.NumField(); i < n; i++ {
 			if s := t.Field(i).Tag.Get("json"); strings.HasPrefix(s, customFieldPrefix) {
@@ -421,29 +439,37 @@ func (issue *jiraIssueFields) UnmarshalJSON(b []byte) error {
 			}
 		}
 	})
-	for k := range issue.customFields {
+	for k, v := range issue.CustomFields {
+		if bytes.Equal(v, []byte("null")) ||
+			bytes.Equal(v, []byte(`""`)) ||
+			bytes.Equal(v, []byte(`{}`)) ||
+			bytes.Equal(v, []byte(`[]`)) {
+			delete(issue.CustomFields, k)
+			continue
+		}
 		if !strings.HasPrefix(k, customFieldPrefix) {
-			delete(issue.customFields, k)
+			delete(issue.CustomFields, k)
+			continue
 		}
 		if _, ok := jiraIssueFieldsAlreadyStored[k]; ok {
-			delete(issue.customFields, k)
+			delete(issue.CustomFields, k)
 		}
 	}
 	return nil
 }
 func (issue jiraIssueFields) MarshalJSON() ([]byte, error) {
-	b, err := json.Marshal(issue.jiraFields)
+	b, err := json.Marshal(issue.JiraFields)
 	b = bytes.TrimSpace(b)
-	if err != nil || len(b) == 0 || len(issue.customFields) == 0 {
+	if err != nil || len(b) == 0 || len(issue.CustomFields) == 0 {
 		return b, err
 	}
-	c, err := json.Marshal(issue.customFields)
+	c, err := json.Marshal(issue.CustomFields)
 	if err != nil {
 		return b, err
 	}
 	c = bytes.TrimSpace(c)
 	if b[len(b)-1] == '}' && c[0] == '{' && c[len(c)-1] == '}' {
-		return append(b[:len(b)-1], c[1:]...), nil
+		return append(append(b[:len(b)-1], ','), c[1:]...), nil
 	}
 	return b, fmt.Errorf("b[-1]=%c c=%s", b[len(b)-1], c)
 }
@@ -461,8 +487,10 @@ func (svc *Jira) IssueGet(ctx context.Context, issueID string, fields []string) 
 		return issue, err
 	}
 	resp, err := svc.Do(ctx, req)
-	logger.Info("IssueGet do", "resp", resp, "error", err)
-	if err != nil {
+	if err == nil {
+		logger.Debug("IssueGet do", "resp", resp, "error", err)
+	} else {
+		logger.Error("IssueGet do", "resp", resp, "error", err)
 		return issue, err
 	}
 	err = json.Unmarshal(resp, &issue)
@@ -541,35 +569,35 @@ func (svc *Jira) NewRequest(ctx context.Context, method string, URL *url.URL, bo
 }
 
 type JIRAUser struct {
-	Self         string `json:"self"`
-	Name         string `json:"name"`
-	Key          string `json:"key"`
-	EmailAddress string `json:"emailAddress"`
-	DisplayName  string `json:"displayName"`
-	TimeZone     string `json:"timeZone"`
-	Active       bool   `json:"active"`
+	Self         string `json:"self,omitempty"`
+	Name         string `json:"name,omitempty"`
+	Key          string `json:"key,omitempty"`
+	EmailAddress string `json:"emailAddress,omitempty"`
+	DisplayName  string `json:"displayName,omitempty"`
+	TimeZone     string `json:"timeZone,omitempty"`
+	Active       bool   `json:"active,omitempty"`
 }
 
 type JIRAVisibility struct {
-	Type  string `json:"type"`
-	Value string `json:"value"`
+	Type  string `json:"type,omitempty"`
+	Value string `json:"value,omitempty"`
 }
 type JIRAComment struct {
-	Self         string         `json:"self"`
-	ID           string         `json:"id"`
-	Author       JIRAUser       `json:"author"`
-	Body         string         `json:"body"`
-	UpdateAuthor JIRAUser       `json:"updateAuthor"`
-	Created      string         `json:"created"`
-	Updated      string         `json:"updated"`
-	Visibility   JIRAVisibility `json:"visibility"`
+	Self         string         `json:"self,omitempty"`
+	ID           string         `json:"id,omitempty"`
+	Author       JIRAUser       `json:"author,omitempty"`
+	Body         string         `json:"body,omitempty"`
+	UpdateAuthor JIRAUser       `json:"updateAuthor,omitempty"`
+	Created      string         `json:"created,omitempty"`
+	Updated      string         `json:"updated,omitempty"`
+	Visibility   JIRAVisibility `json:"visibility,omitempty"`
 }
 
 type getCommentsResp struct {
-	Comments   []JIRAComment `json:"comments"`
-	StartAt    int32         `json:"startAt"`
-	MaxResults int32         `json:"maxResults"`
-	Total      int32         `json:"total"`
+	Comments   []JIRAComment `json:"comments,omitempty"`
+	StartAt    int32         `json:"startAt,omitempty"`
+	MaxResults int32         `json:"maxResults,omitempty"`
+	Total      int32         `json:"total,omitempty"`
 }
 
 func (svc *Jira) IssueComments(ctx context.Context, issueID string) ([]JIRAComment, error) {
@@ -593,8 +621,8 @@ func (svc *Jira) IssueComments(ctx context.Context, issueID string) ([]JIRAComme
 }
 
 type JSONCommentBody struct {
-	Body string `json:"body"`
-	//Visibility JIRAVisibility `json:"visibility"`
+	Body string `json:"body,omitempty"`
+	//Visibility JIRAVisibility `json:"visibility,omitempty"`
 }
 
 func (svc *Jira) IssueAddComment(ctx context.Context, issueID, body string) error {
@@ -654,14 +682,14 @@ func (svc *Jira) IssueAddAttachment(ctx context.Context, issueID, fileName, mime
 }
 
 type JIRAAttachment struct {
-	Author    JIRAUser `json:"author"`
-	Self      string   `json:"self"`
-	Filename  string   `json:"filename"`
-	Created   string   `json:"created"`
-	MimeType  string   `json:"mimeType"`
-	Content   string   `json:"content"`
-	Thumbnail string   `json:"thumbnail"`
-	Size      int      `json:"size"`
+	Author    JIRAUser `json:"author,omitempty"`
+	Self      string   `json:"self,omitempty"`
+	Filename  string   `json:"filename,omitempty"`
+	Created   string   `json:"created,omitempty"`
+	MimeType  string   `json:"mimeType,omitempty"`
+	Content   string   `json:"content,omitempty"`
+	Thumbnail string   `json:"thumbnail,omitempty"`
+	Size      int      `json:"size,omitempty"`
 }
 
 func (svc *Jira) Do(ctx context.Context, req *http.Request) ([]byte, error) {
@@ -687,11 +715,11 @@ func (svc *Jira) Do(ctx context.Context, req *http.Request) ([]byte, error) {
 }
 
 type rawToken struct {
-	JSessionID   string `json:"JSESSIONID"`
-	AccessToken  string `json:"access_token"`
-	IssuedAt     string `json:"issued_at"`
-	ExpiresIn    string `json:"expires_in"`
-	RefreshCount string `json:"refresh_count"`
+	JSessionID   string `json:"JSESSIONID,omitempty"`
+	AccessToken  string `json:"access_token,omitempty"`
+	IssuedAt     string `json:"issued_at,omitempty"`
+	ExpiresIn    string `json:"expires_in,omitempty"`
+	RefreshCount string `json:"refresh_count,omitempty"`
 	JIRAError
 }
 
@@ -732,21 +760,21 @@ func (t *Token) IsValid() bool {
 }
 
 type JIRAError struct {
-	Code     string   `json:"ErrorCode,omitempty"`
-	Message  string   `json:"Error,omitempty"`
-	Fault    Fault    `json:"fault,omitempty"`
-	Messages []string `json:"errorMessages,omitempty"`
+	Code     string   `json:"ErrorCode,omitempty,omitempty"`
+	Message  string   `json:"Error,omitempty,omitempty"`
+	Fault    Fault    `json:"fault,omitempty,omitempty"`
+	Messages []string `json:"errorMessages,omitempty,omitempty"`
 }
 type Fault struct {
-	Code   string      `json:"faultstring,omitempty"`
-	Detail FaultDetail `json:"detail,omitempty"`
+	Code   string      `json:"faultstring,omitempty,omitempty"`
+	Detail FaultDetail `json:"detail,omitempty,omitempty"`
 }
 type FaultDetail struct {
-	Message string `json:"errorcode,omitempty"`
+	Message string `json:"errorcode,omitempty,omitempty"`
 }
 type userPass struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
 }
 
 func (je *JIRAError) Error() string {
