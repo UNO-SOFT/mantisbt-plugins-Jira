@@ -137,9 +137,22 @@ func Main() error {
 			return nil
 		},
 	}
+	issueMantisIDCmd := ffcli.Command{Name: "mantisID",
+		Exec: func(ctx context.Context, args []string) error {
+			issueID := args[0]
+			issue, err := svc.IssueGet(ctx, issueID, []string{"customfield_15902"})
+			if err != nil {
+				fmt.Println("ERR", err)
+				return err
+			}
+			logger.Info("issue MantisID", "issueID", issueID, "mantisID", issue.Fields.MantisID)
+			fmt.Println(issue.Fields.MantisID)
+			return nil
+		},
+	}
 
 	issueCmd := ffcli.Command{Name: "issue",
-		Subcommands: []*ffcli.Command{&issueGetCmd, &issueExistsCmd},
+		Subcommands: []*ffcli.Command{&issueGetCmd, &issueExistsCmd, &issueMantisIDCmd},
 		Exec:        issueExistsCmd.Exec,
 	}
 	fs = flag.NewFlagSet("jira", flag.ContinueOnError)
