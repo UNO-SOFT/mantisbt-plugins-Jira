@@ -5,7 +5,7 @@ go 1.21
 toolchain go1.21.0
 
 require (
-	github.com/UNO-SOFT/zlog v0.7.4
+	github.com/UNO-SOFT/zlog v0.7.6
 	github.com/google/renameio v1.0.1
 	github.com/klauspost/compress v1.16.6
 	github.com/peterbourgon/ff/v3 v3.3.2
