@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"net/http/httputil"
@@ -21,16 +22,14 @@ import (
 
 	"github.com/google/renameio"
 	"github.com/klauspost/compress/gzhttp"
-
-	"golang.org/x/exp/slog"
 )
 
 // https://partnerapi-uat.aegon.hu/partner/v1/ticket/update/openapi.json
 type Jira struct {
 	URL        *url.URL
-	tokens     map[string]Token
+	tokens     map[string]*Token
 	HTTPClient *http.Client
-	token      Token
+	token      *Token
 	tokensFile string
 }
 
@@ -521,11 +520,11 @@ func (svc *Jira) Load(tokensFile, jiraUser, jiraPassword string) {
 		logger.Error("open", "file", tokensFile, "error", err)
 		return
 	}
-	var m map[string]Token
+	var m map[string]*Token
 	err = json.NewDecoder(fh).Decode(&m)
 	fh.Close()
 	if err == nil {
-		svc.tokens = make(map[string]Token, len(m))
+		svc.tokens = make(map[string]*Token, len(m))
 		for k, v := range m {
 			if v.IsValid() {
 				svc.tokens[k] = v
@@ -696,7 +695,7 @@ func (svc *Jira) Do(ctx context.Context, req *http.Request) ([]byte, error) {
 	b, changed, err := svc.token.do(ctx, svc.HTTPClient, req)
 	if changed {
 		if svc.tokens == nil {
-			svc.tokens = make(map[string]Token)
+			svc.tokens = make(map[string]*Token)
 		}
 		svc.tokens[redactedURL(svc.URL)] = svc.token
 		if svc.tokensFile != "" {
@@ -760,17 +759,17 @@ func (t *Token) IsValid() bool {
 }
 
 type JIRAError struct {
-	Code     string   `json:"ErrorCode,omitempty,omitempty"`
-	Message  string   `json:"Error,omitempty,omitempty"`
-	Fault    Fault    `json:"fault,omitempty,omitempty"`
-	Messages []string `json:"errorMessages,omitempty,omitempty"`
+	Code     string   `json:"ErrorCode,omitempty"`
+	Message  string   `json:"Error,omitempty"`
+	Fault    Fault    `json:"fault,omitempty"`
+	Messages []string `json:"errorMessages,omitempty"`
 }
 type Fault struct {
-	Code   string      `json:"faultstring,omitempty,omitempty"`
-	Detail FaultDetail `json:"detail,omitempty,omitempty"`
+	Code   string      `json:"faultstring,omitempty"`
+	Detail FaultDetail `json:"detail,omitempty"`
 }
 type FaultDetail struct {
-	Message string `json:"errorcode,omitempty,omitempty"`
+	Message string `json:"errorcode,omitempty"`
 }
 type userPass struct {
 	Username string `json:"username,omitempty"`
