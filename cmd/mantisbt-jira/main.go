@@ -25,7 +25,7 @@ import (
 	"github.com/peterbourgon/ff/v3/ffcli"
 )
 
-var verbose zlog.VerboseVar
+var verbose zlog.VerboseVar = 1
 var logger = zlog.NewLogger(zlog.MaybeConsoleHandler(&verbose, os.Stderr)).SLog()
 
 // https://partnerapi-uat.aegon.hu/partner/v1/ticket/update/openapi.json
