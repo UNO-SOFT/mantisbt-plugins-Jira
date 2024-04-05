@@ -697,7 +697,7 @@ type JIRAAttachment struct {
 	Size      int      `json:"size,omitempty"`
 }
 
-func (svc *Jira) Do(ctx context.Context, req *http.Request) ([]byte, error) {
+func (svc *Jira) Do(ctx context.Context, req *http.Request) (json.RawMessage, error) {
 	b, changed, err := svc.token.do(ctx, svc.HTTPClient, req)
 	if changed {
 		if svc.tokens == nil {
@@ -756,8 +756,9 @@ func (t *Token) init() error {
 	if err != nil {
 		return fmt.Errorf("parse expiresIn(%q): %w", t.ExpiresIn, err)
 	}
-	t.till = time.Unix(issuedAt/1000, issuedAt%1000).Add(time.Duration(expiresIn) * time.Second)
-	logger.Debug("Unmarshal", "issuedAt", issuedAt, "expiresIn", expiresIn, "till", t.till)
+	issued := time.Unix(issuedAt/1000, issuedAt%1000)
+	t.till = issued.Add(time.Duration(expiresIn) * time.Second)
+	logger.Debug("Unmarshal", "issuedAt", issuedAt, "issued", issued, "expiresIn", expiresIn, "till", t.till)
 	return nil
 }
 func (t *Token) IsValid() bool {
@@ -834,8 +835,8 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		req.Header.Set("Content-Type", "application/json")
 		start := time.Now()
 		resp, err := httpClient.Do(req.WithContext(ctx))
-		logger.Info("authenticate", "dur", time.Since(start).String(), "url", t.AuthURL, "error", err)
 		if err != nil {
+			logger.Error("authenticate", "dur", time.Since(start).String(), "url", t.AuthURL, "error", err)
 			return nil, changed, err
 		}
 		if resp == nil || resp.Body == nil {
@@ -844,10 +845,13 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		buf.Reset()
 		_, err = io.Copy(&buf, resp.Body)
 		resp.Body.Close()
+		logger.Debug("authenticate", "response", buf.String())
 		if err != nil {
 			return nil, changed, err
 		}
-		logger.Debug("authenticate", "response", buf.String())
+		if buf.Len() == 0 {
+			return nil, changed, fmt.Errorf("empty response")
+		}
 		if err = json.NewDecoder(bytes.NewReader(buf.Bytes())).Decode(&t); err != nil {
 			return nil, changed, fmt.Errorf("decode %q: %w", buf.String(), err)
 		}
