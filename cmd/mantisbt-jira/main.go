@@ -159,7 +159,7 @@ func Main() error {
 	flagBaseURL := fs.String("jira-base", DefaultJiraURL, "JIRA base URL (with basic auth!)")
 	flagJiraUser := fs.String("jira-user", os.Getenv("SVC_USER"), "service user")
 	flagJiraPassword := fs.String("jira-password", os.Getenv("SVC_PASSWORD"), "service password")
-	flagTimeout := fs.Duration("timeout", 30*time.Second, "timeout")
+	flagTimeout := fs.Duration("timeout", 1*time.Minute, "timeout")
 	flagBasicUser := fs.String("basic-user", os.Getenv("JIRA_USER"), "JIRA user")
 	flagBasicPassword := fs.String("basic-password", os.Getenv("JIRA_PASSWORD"), "JIRA password")
 	fs.Var(&verbose, "v", "verbose logging")

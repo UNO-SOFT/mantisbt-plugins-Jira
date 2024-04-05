@@ -509,7 +509,11 @@ func (svc *Jira) IssuePut(ctx context.Context, issue JIRAIssue) error {
 	return err
 }
 func (svc *Jira) Load(tokensFile, jiraUser, jiraPassword string) {
-	svc.token.Username, svc.token.Password = jiraUser, jiraPassword
+	if svc.token == nil {
+		svc.token = &Token{Username: jiraUser, Password: jiraPassword}
+	} else {
+		svc.token.Username, svc.token.Password = jiraUser, jiraPassword
+	}
 	svc.token.AuthURL = svc.URL.JoinPath("auth").String()
 	if tokensFile == "" {
 		return
@@ -531,12 +535,14 @@ func (svc *Jira) Load(tokensFile, jiraUser, jiraPassword string) {
 			}
 		}
 		old := svc.token
-		svc.token = svc.tokens[redactedURL(svc.URL)]
-		if old.Username != "" {
-			svc.token.Username, svc.token.Password = old.Username, old.Password
-		}
-		if svc.token.AuthURL == "" {
-			svc.token.AuthURL = old.AuthURL
+		if act := svc.tokens[redactedURL(svc.URL)]; act != nil {
+			if old.Username != "" {
+				act.Username, act.Password = old.Username, old.Password
+			}
+			if act.AuthURL == "" {
+				act.AuthURL = old.AuthURL
+			}
+			svc.token = act
 		}
 		return
 	}
@@ -880,10 +886,11 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	}
 	start := time.Now()
 	resp, err := httpClient.Do(req.WithContext(ctx))
-	logger.Info("do", "url", req.URL.String(), "method", req.Method, "dur", time.Since(start).String(), "hasBody", resp.Body != nil, "status", resp.Status)
 	if err != nil {
+		logger.Error("do", "url", req.URL.String(), "method", req.Method, "dur", time.Since(start).String(), "error", err)
 		return nil, changed, err
 	}
+	logger.Info("do", "url", req.URL.String(), "method", req.Method, "dur", time.Since(start).String(), "hasBody", resp.Body != nil, "status", resp.Status)
 	if resp == nil {
 		return nil, changed, fmt.Errorf("empty response")
 	}
