@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/UNO-SOFT/mantisbt-plugins-Jira/cmd/mantisbt-jira/dirq"
 )
@@ -32,6 +33,7 @@ func (Q queue) Enqueue(ctx context.Context, t task) error {
 
 func serve(ctx context.Context, svc Jira, dir string) error {
 	logger.Debug("serve", "svc", svc, "dir", dir)
+
 	f := func(ctx context.Context, p []byte) error {
 		logger.Debug("Dequeue", "data", p)
 		var t task
@@ -41,7 +43,6 @@ func serve(ctx context.Context, svc Jira, dir string) error {
 		logger.Debug("dequeued", slog.String("name", t.Name))
 		switch t.Name {
 		case "IssueAddComment":
-
 			return svc.IssueAddComment(ctx, t.IssueID, t.Comment)
 
 		case "IssueAddAttachment":
@@ -52,10 +53,32 @@ func serve(ctx context.Context, svc Jira, dir string) error {
 		}
 		return nil
 	}
-	Q := queue{Queue: dirq.Queue{Dir: dir}}
+	var Q queue
+	var err error
+	if Q.Queue, err = dirq.New(dir); err != nil {
+		return err
+	}
 	if err := Q.Dequeue(ctx, f); err != nil && !errors.Is(err, dirq.ErrEmpty) {
 		return err
 	}
+	ticker := time.NewTicker(time.Minute)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := Q.Dequeue(ctx, f); err != nil {
+					if errors.Is(err, dirq.ErrEmpty) {
+						logger.Info("Dequeue empty")
+					} else {
+						logger.Error("Dequeue", "error", err)
+					}
+				}
+			}
+		}
+	}()
+
 	return Q.Watch(ctx, f)
 }
 

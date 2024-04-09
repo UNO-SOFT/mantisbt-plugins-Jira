@@ -57,6 +57,14 @@ func main() {
 	}
 }
 
+type SVC struct {
+	Jira
+	BaseURL                      string
+	BasicUser, BasicUserPassword string
+	TokensFile                   string
+	JIRAUser, JIRAPassword       string
+}
+
 // Main is the main function
 func Main() error {
 	var Q queue
@@ -73,7 +81,7 @@ func Main() error {
 		return err
 	}
 	client.Jar = clientJar
-	svc := Jira{HTTPClient: &client}
+	svc := SVC{Jira: Jira{HTTPClient: &client}}
 
 	fs := flag.NewFlagSet("attach", flag.ContinueOnError)
 	flagAttachFileName := fs.String("filename", "", "override file name")
@@ -116,6 +124,9 @@ func Main() error {
 					return nil
 				}
 			}
+			if err = svc.init(); err != nil {
+				return err
+			}
 			return svc.IssueAddAttachment(ctx, issueID, fileName, mimeType, io.MultiReader(bytes.NewReader(b), r))
 		},
 	}
@@ -142,6 +153,9 @@ func Main() error {
 					return nil
 				}
 			}
+			if err = svc.init(); err != nil {
+				return err
+			}
 			return svc.IssueAddComment(ctx, issueID, body)
 		},
 	}
@@ -151,6 +165,9 @@ func Main() error {
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			issueID := args[0]
+			if err = svc.init(); err != nil {
+				return err
+			}
 			issue, err := svc.IssueGet(ctx, issueID, nil)
 			if err != nil {
 				fmt.Println("ERR", err)
@@ -160,11 +177,15 @@ func Main() error {
 			return nil
 		},
 	}
+
 	issueExistsCmd := ffcli.Command{Name: "exists",
 		Exec: func(ctx context.Context, args []string) error {
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			issueID := args[0]
+			if err = svc.init(); err != nil {
+				return err
+			}
 			issue, err := svc.IssueGet(ctx, issueID, []string{"status"})
 			if err != nil {
 				fmt.Println("ERR", err)
@@ -180,6 +201,9 @@ func Main() error {
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			issueID := args[0]
+			if err = svc.init(); err != nil {
+				return err
+			}
 			issue, err := svc.IssueGet(ctx, issueID, []string{"customfield_15902"})
 			if err != nil {
 				fmt.Println("ERR", err)
@@ -201,17 +225,20 @@ func Main() error {
 			if len(args) != 0 {
 				Q.Dir = args[0]
 			}
-			return serve(ctx, svc, Q.Dir)
+			if err = svc.init(); err != nil {
+				return err
+			}
+			return serve(ctx, svc.Jira, Q.Dir)
 		},
 	}
 
 	fs = flag.NewFlagSet("jira", flag.ContinueOnError)
-	flagBaseURL := fs.String("jira-base", DefaultJiraURL, "JIRA base URL (with basic auth!)")
-	flagJiraUser := fs.String("jira-user", os.Getenv("SVC_USER"), "service user")
-	flagJiraPassword := fs.String("jira-password", os.Getenv("SVC_PASSWORD"), "service password")
+	fs.StringVar(&svc.BaseURL, "jira-base", DefaultJiraURL, "JIRA base URL (with basic auth!)")
+	fs.StringVar(&svc.JIRAUser, "jira-user", os.Getenv("SVC_USER"), "service user")
+	fs.StringVar(&svc.JIRAPassword, "jira-password", os.Getenv("SVC_PASSWORD"), "service password")
 	fs.DurationVar(&timeout, "timeout", 1*time.Minute, "timeout")
-	flagBasicUser := fs.String("basic-user", os.Getenv("JIRA_USER"), "JIRA user")
-	flagBasicPassword := fs.String("basic-password", os.Getenv("JIRA_PASSWORD"), "JIRA password")
+	fs.StringVar(&svc.BasicUser, "basic-user", os.Getenv("JIRA_USER"), "JIRA user")
+	fs.StringVar(&svc.BasicUserPassword, "basic-password", os.Getenv("JIRA_PASSWORD"), "JIRA password")
 	fs.Var(&verbose, "v", "verbose logging")
 	fs.StringVar(&Q.Dir, "queue", "", "queue directory")
 	ucd, err := os.UserCacheDir()
@@ -220,7 +247,7 @@ func Main() error {
 	}
 	// nosemgrep: go.lang.correctness.permissions.file_permission.incorrect-default-permission
 	_ = os.MkdirAll(ucd, 0750)
-	flagTokensFile := fs.String("token", filepath.Join(ucd, "jira-token.json"), "JIRA token file")
+	fs.StringVar(&svc.TokensFile, "token", filepath.Join(ucd, "jira-token.json"), "JIRA token file")
 	app := ffcli.Command{Name: "jira", FlagSet: fs, Options: []ff.Option{ff.WithEnvVarNoPrefix()},
 		Subcommands: []*ffcli.Command{
 			&addAttachmentCmd, &addCommentCmd,
@@ -248,15 +275,6 @@ func Main() error {
 	if err := app.Parse(os.Args[1:]); err != nil {
 		return err
 	}
-	svcURL, err := url.Parse(*flagBaseURL)
-	if err != nil {
-		return fmt.Errorf("parse %q: %w", *flagBaseURL, err)
-	}
-	svc.URL = svcURL
-	if *flagBasicUser != "" {
-		svc.URL.User = url.UserPassword(*flagBasicUser, *flagBasicPassword)
-	}
-	svc.Load(*flagTokensFile, *flagJiraUser, *flagJiraPassword)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
@@ -265,4 +283,17 @@ func Main() error {
 	err = app.Run(ctx)
 	logger.Info("run", "dur", time.Since(start).String())
 	return err
+}
+
+func (svc *SVC) init() error {
+	svcURL, err := url.Parse(svc.BaseURL)
+	if err != nil {
+		return fmt.Errorf("parse %q: %w", svc.BaseURL, err)
+	}
+	svc.Jira.URL = svcURL
+	if svc.BasicUser != "" {
+		svc.URL.User = url.UserPassword(svc.BasicUser, svc.BasicUserPassword)
+	}
+	svc.Load(svc.TokensFile, svc.JIRAUser, svc.JIRAPassword)
+	return nil
 }

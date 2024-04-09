@@ -23,6 +23,19 @@ type Queue struct {
 	Dir string
 }
 
+func New(dir string) (Queue, error) {
+	dis, err := os.ReadDir(dir)
+	if len(dis) == 0 && err != nil {
+		return Queue{}, err
+	}
+	for _, di := range dis {
+		if nm := di.Name(); len(nm) == 26+len(ext)+2 && strings.HasSuffix(nm, ext+".y") {
+			_ = os.Rename(filepath.Join(dir, nm), filepath.Join(dir, nm[:len(nm)-2]))
+		}
+	}
+	return Queue{Dir: dir}, nil
+}
+
 func (Q Queue) Enqueue(p []byte) error {
 	return renameio.WriteFile(
 		filepath.Join(Q.Dir, ulid.MustNew(ulid.Now(), ulid.DefaultEntropy()).String()+ext),
