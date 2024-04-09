@@ -7,6 +7,7 @@ package dirq
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,7 +33,7 @@ func (Q Queue) Enqueue(p []byte) error {
 // DequeueOne will call f on the first dequeueable message.
 // The message will be deleted iff f returns nil,
 // otherwise it remains in the queue.
-func (Q Queue) DequeueOne(ctx context.Context, f func(context.Context, []byte) error) error {
+func (Q Queue) Dequeue(ctx context.Context, f func(context.Context, []byte) error) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -40,15 +41,22 @@ func (Q Queue) DequeueOne(ctx context.Context, f func(context.Context, []byte) e
 	if len(dis) == 0 {
 		return err
 	}
+	var haveAny bool
 	for _, di := range dis {
 		nm := di.Name()
 		if !(di.Type().IsRegular() && strings.HasSuffix(nm, ext) &&
 			len(nm) == 26+len(ext)) {
 			continue
 		}
-		return Q.dequeueOne(ctx, f, filepath.Join(Q.Dir, nm))
+		if err := Q.dequeueOne(ctx, f, filepath.Join(Q.Dir, nm)); err != nil {
+			return err
+		}
+		haveAny = true
 	}
-	return ErrEmpty
+	if !haveAny {
+		return ErrEmpty
+	}
+	return nil
 }
 
 var ErrEmpty = errors.New("queue is empty")
@@ -56,9 +64,9 @@ var ErrEmpty = errors.New("queue is empty")
 // Dequeue all the incoming messages, continuously.
 //
 // Calls DequeueOne when a new message arrives (based on notification).
-func (Q Queue) Dequeue(ctx context.Context, f func(context.Context, []byte) error) error {
-	c := make(chan notify.EventInfo, 2)
-	if err := notify.Watch(Q.Dir, c, notify.InMoveSelf); err != nil {
+func (Q Queue) Watch(ctx context.Context, f func(context.Context, []byte) error) error {
+	c := make(chan notify.EventInfo)
+	if err := notify.Watch(Q.Dir, c, notify.InMoveSelf, notify.InMovedTo); err != nil {
 		return err
 	}
 	defer notify.Stop(c)
@@ -71,6 +79,7 @@ func (Q Queue) Dequeue(ctx context.Context, f func(context.Context, []byte) erro
 			if !ok {
 				return ctx.Err()
 			}
+			slog.Debug("notify", "path", ei.Path())
 			if bn := filepath.Base(ei.Path()); len(bn) == 26+len(ext) && strings.HasSuffix(bn, ext) {
 				_ = Q.dequeueOne(ctx, f, ei.Path())
 			}

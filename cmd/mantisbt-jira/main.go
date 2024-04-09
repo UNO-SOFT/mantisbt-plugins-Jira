@@ -61,6 +61,8 @@ func main() {
 func Main() error {
 	var Q queue
 
+	timeout := time.Minute
+
 	client := *http.DefaultClient
 	if client.Transport == nil {
 		client.Transport = http.DefaultTransport
@@ -78,6 +80,8 @@ func Main() error {
 	addAttachmentCmd := ffcli.Command{Name: "attach",
 		FlagSet: fs,
 		Exec: func(ctx context.Context, args []string) error {
+			ctx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
 			issueID := args[0]
 			r := os.Stdin
 			if !(len(args) < 2 || args[1] == "" || args[1] == "-") {
@@ -118,6 +122,8 @@ func Main() error {
 
 	addCommentCmd := ffcli.Command{Name: "comment",
 		Exec: func(ctx context.Context, args []string) error {
+			ctx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
 			issueID := args[0]
 			body := strings.Join(args[1:], " ")
 			if len(args) < 2 || (len(args) == 2 && (args[1] == "" || args[1] == "-")) {
@@ -142,6 +148,8 @@ func Main() error {
 
 	issueGetCmd := ffcli.Command{Name: "get",
 		Exec: func(ctx context.Context, args []string) error {
+			ctx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
 			issueID := args[0]
 			issue, err := svc.IssueGet(ctx, issueID, nil)
 			if err != nil {
@@ -154,6 +162,8 @@ func Main() error {
 	}
 	issueExistsCmd := ffcli.Command{Name: "exists",
 		Exec: func(ctx context.Context, args []string) error {
+			ctx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
 			issueID := args[0]
 			issue, err := svc.IssueGet(ctx, issueID, []string{"status"})
 			if err != nil {
@@ -167,6 +177,8 @@ func Main() error {
 	}
 	issueMantisIDCmd := ffcli.Command{Name: "mantisID",
 		Exec: func(ctx context.Context, args []string) error {
+			ctx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
 			issueID := args[0]
 			issue, err := svc.IssueGet(ctx, issueID, []string{"customfield_15902"})
 			if err != nil {
@@ -197,7 +209,7 @@ func Main() error {
 	flagBaseURL := fs.String("jira-base", DefaultJiraURL, "JIRA base URL (with basic auth!)")
 	flagJiraUser := fs.String("jira-user", os.Getenv("SVC_USER"), "service user")
 	flagJiraPassword := fs.String("jira-password", os.Getenv("SVC_PASSWORD"), "service password")
-	flagTimeout := fs.Duration("timeout", 1*time.Minute, "timeout")
+	fs.DurationVar(&timeout, "timeout", 1*time.Minute, "timeout")
 	flagBasicUser := fs.String("basic-user", os.Getenv("JIRA_USER"), "JIRA user")
 	flagBasicPassword := fs.String("basic-password", os.Getenv("JIRA_PASSWORD"), "JIRA password")
 	fs.Var(&verbose, "v", "verbose logging")
@@ -247,8 +259,6 @@ func Main() error {
 	svc.Load(*flagTokensFile, *flagJiraUser, *flagJiraPassword)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer cancel()
-	ctx, cancel = context.WithTimeout(ctx, *flagTimeout)
 	defer cancel()
 
 	start := time.Now()
