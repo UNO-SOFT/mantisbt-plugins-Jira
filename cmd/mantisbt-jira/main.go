@@ -30,8 +30,13 @@ var logger = zlog.NewLogger(zlog.MaybeConsoleHandler(&verbose, os.Stderr)).SLog(
 
 // https://partnerapi-uat.aegon.hu/partner/v1/ticket/update/openapi.json
 
-// DefaultJiraURL is the default JIRA URL
-const DefaultJiraURL = "https://partnerapi-uat.aegon.hu/partner/v1/ticket/update"
+const (
+	// DefaultJiraURL is the default JIRA URL
+	DefaultJiraURL = "https://partnerapi-uat.aegon.hu/partner/v1/ticket/update"
+
+	// DefaultSocket is the name of the default abstract unix domain socket
+	DefaultSocket = "01HTQESJBMHHYJRFXP6CFNYGGW"
+)
 
 func main() {
 	if err := Main(); err != nil {
@@ -54,6 +59,8 @@ func main() {
 
 // Main is the main function
 func Main() error {
+	var Q queue
+
 	client := *http.DefaultClient
 	if client.Transport == nil {
 		client.Transport = http.DefaultTransport
@@ -93,6 +100,18 @@ func Main() error {
 			b := a[:n]
 			mimeType := http.DetectContentType(b)
 			logger.Info("IssueAddAttachment", "issueID", issueID, "fileName", fileName, "mimeType", mimeType)
+			if Q.Dir != "" {
+				if b, err = io.ReadAll(io.MultiReader(bytes.NewReader(b), r)); err != nil {
+					return err
+				}
+				if err = Q.Enqueue(ctx, task{
+					Name: "IssueAddAttachment", IssueID: issueID, FileName: fileName, MIMEType: mimeType, Data: b,
+				}); err != nil {
+					logger.Error("queue", "error", err)
+				} else {
+					return nil
+				}
+			}
 			return svc.IssueAddAttachment(ctx, issueID, fileName, mimeType, io.MultiReader(bytes.NewReader(b), r))
 		},
 	}
@@ -107,6 +126,15 @@ func Main() error {
 					return err
 				}
 				body = buf.String()
+			}
+			if Q.Dir != "" {
+				if err = Q.Enqueue(ctx, task{
+					Name: "IssueAddComment", IssueID: issueID, Comment: body,
+				}); err != nil {
+					logger.Error("queue", "error", err)
+				} else {
+					return nil
+				}
 			}
 			return svc.IssueAddComment(ctx, issueID, body)
 		},
@@ -155,6 +183,16 @@ func Main() error {
 		Subcommands: []*ffcli.Command{&issueGetCmd, &issueExistsCmd, &issueMantisIDCmd},
 		Exec:        issueExistsCmd.Exec,
 	}
+
+	serveCmd := ffcli.Command{Name: "serve",
+		Exec: func(ctx context.Context, args []string) error {
+			if len(args) != 0 {
+				Q.Dir = args[0]
+			}
+			return serve(ctx, svc, Q.Dir)
+		},
+	}
+
 	fs = flag.NewFlagSet("jira", flag.ContinueOnError)
 	flagBaseURL := fs.String("jira-base", DefaultJiraURL, "JIRA base URL (with basic auth!)")
 	flagJiraUser := fs.String("jira-user", os.Getenv("SVC_USER"), "service user")
@@ -163,7 +201,8 @@ func Main() error {
 	flagBasicUser := fs.String("basic-user", os.Getenv("JIRA_USER"), "JIRA user")
 	flagBasicPassword := fs.String("basic-password", os.Getenv("JIRA_PASSWORD"), "JIRA password")
 	fs.Var(&verbose, "v", "verbose logging")
-	ucd, err := os.UserConfigDir()
+	fs.StringVar(&Q.Dir, "queue", "", "queue directory")
+	ucd, err := os.UserCacheDir()
 	if err != nil {
 		return err
 	}
@@ -174,6 +213,7 @@ func Main() error {
 		Subcommands: []*ffcli.Command{
 			&addAttachmentCmd, &addCommentCmd,
 			&issueCmd,
+			&serveCmd,
 		},
 		Exec: func(ctx context.Context, args []string) error {
 			if len(args) == 0 {

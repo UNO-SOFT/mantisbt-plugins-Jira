@@ -30,6 +30,7 @@ type Jira struct {
 	tokens     map[string]*Token
 	HTTPClient *http.Client
 	token      *Token
+	socket     string
 	tokensFile string
 }
 
