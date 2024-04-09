@@ -81,7 +81,12 @@ func Main() error {
 		return err
 	}
 	client.Jar = clientJar
-	svc := SVC{Jira: Jira{HTTPClient: &client}}
+	svc := SVC{
+		Jira: Jira{HTTPClient: &client},
+	}
+	if svc.BaseURL = os.Getenv("JIRA_URL"); svc.BaseURL == "" {
+		svc.BaseURL = DefaultJiraURL
+	}
 
 	fs := flag.NewFlagSet("attach", flag.ContinueOnError)
 	flagAttachFileName := fs.String("filename", "", "override file name")
@@ -233,12 +238,12 @@ func Main() error {
 	}
 
 	fs = flag.NewFlagSet("jira", flag.ContinueOnError)
-	fs.StringVar(&svc.BaseURL, "jira-base", DefaultJiraURL, "JIRA base URL (with basic auth!)")
+	fs.StringVar(&svc.BaseURL, "jira-base", svc.BaseURL, "JIRA base URL (with basic auth!)")
+	fs.StringVar(&svc.BasicUser, "basic-user", os.Getenv("JIRA_USER"), "JIRA user")
+	fs.StringVar(&svc.BasicUserPassword, "basic-password", os.Getenv("JIRA_PASSWORD"), "JIRA password")
 	fs.StringVar(&svc.JIRAUser, "jira-user", os.Getenv("SVC_USER"), "service user")
 	fs.StringVar(&svc.JIRAPassword, "jira-password", os.Getenv("SVC_PASSWORD"), "service password")
 	fs.DurationVar(&timeout, "timeout", 1*time.Minute, "timeout")
-	fs.StringVar(&svc.BasicUser, "basic-user", os.Getenv("JIRA_USER"), "JIRA user")
-	fs.StringVar(&svc.BasicUserPassword, "basic-password", os.Getenv("JIRA_PASSWORD"), "JIRA password")
 	fs.Var(&verbose, "v", "verbose logging")
 	fs.StringVar(&Q.Dir, "queue", "", "queue directory")
 	ucd, err := os.UserCacheDir()

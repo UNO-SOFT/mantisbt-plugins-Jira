@@ -167,6 +167,7 @@ $this->log( 'comment added' );
 				$t_args[] = escapeshellarg( '-jira-' . $k . '=' . $v );
 			}
 		}
+		$t_args[] = '-queue=/var/local/mantis/jira' . (SYS_FLAVOR == 'dev' ? '-dev' : '');
 		
 		$t_output = array();
 		$t_args = implode( ' ', $t_args ) . ' ' . escapeshellarg( $p_subcommand );
@@ -194,7 +195,7 @@ $this->log( 'comment added' );
 
 	function log( $p_text ) {
 		if( !$this->log_file ) {
-			$this->log_file = fopen( '/var/log/mantis/jira.log', 'a' );
+			$this->log_file = fopen( '/var/log/mantis/jira' . (SYS_FLAVOR == 'dev' ? '-dev' : '') . '.log', 'a' );
 		}
 		fwrite( $this->log_file, $p_text . "\n" );
 		fflush( $this->log_file );
