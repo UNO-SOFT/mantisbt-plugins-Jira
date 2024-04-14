@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/UNO-SOFT/mantisbt-plugins-Jira/cmd/mantisbt-jira/dirq"
 	"github.com/UNO-SOFT/zlog/v2"
 	"github.com/klauspost/compress/gzhttp"
 	"github.com/peterbourgon/ff/v3"
@@ -33,9 +34,6 @@ var logger = zlog.NewLogger(zlog.MaybeConsoleHandler(&verbose, os.Stderr)).SLog(
 const (
 	// DefaultJiraURL is the default JIRA URL
 	DefaultJiraURL = "https://partnerapi-uat.aegon.hu/partner/v1/ticket/update"
-
-	// DefaultSocket is the name of the default abstract unix domain socket
-	DefaultSocket = "01HTQESJBMHHYJRFXP6CFNYGGW"
 )
 
 func main() {
@@ -63,12 +61,13 @@ type SVC struct {
 	BasicUser, BasicUserPassword string
 	TokensFile                   string
 	JIRAUser, JIRAPassword       string
+	queueName                    string
+	queue                        dirq.Queue
 }
 
 // Main is the main function
 func Main() error {
-	var Q queue
-
+	var queuesDir string
 	timeout := time.Minute
 
 	client := *http.DefaultClient
@@ -117,11 +116,11 @@ func Main() error {
 			b := a[:n]
 			mimeType := http.DetectContentType(b)
 			logger.Info("IssueAddAttachment", "issueID", issueID, "fileName", fileName, "mimeType", mimeType)
-			if Q.Dir != "" {
+			if queuesDir != "" {
 				if b, err = io.ReadAll(io.MultiReader(bytes.NewReader(b), r)); err != nil {
 					return err
 				}
-				if err = Q.Enqueue(ctx, task{
+				if err = svc.Enqueue(ctx, queuesDir, task{
 					Name: "IssueAddAttachment", IssueID: issueID, FileName: fileName, MIMEType: mimeType, Data: b,
 				}); err != nil {
 					logger.Error("queue", "error", err)
@@ -149,8 +148,8 @@ func Main() error {
 				}
 				body = buf.String()
 			}
-			if Q.Dir != "" {
-				if err = Q.Enqueue(ctx, task{
+			if queuesDir != "" {
+				if err = svc.Enqueue(ctx, queuesDir, task{
 					Name: "IssueAddComment", IssueID: issueID, Comment: body,
 				}); err != nil {
 					logger.Error("queue", "error", err)
@@ -228,12 +227,9 @@ func Main() error {
 	serveCmd := ffcli.Command{Name: "serve",
 		Exec: func(ctx context.Context, args []string) error {
 			if len(args) != 0 {
-				Q.Dir = args[0]
+				queuesDir = args[0]
 			}
-			if err = svc.init(); err != nil {
-				return err
-			}
-			return serve(ctx, svc.Jira, Q.Dir)
+			return serve(ctx, queuesDir)
 		},
 	}
 
@@ -245,7 +241,7 @@ func Main() error {
 	fs.StringVar(&svc.JIRAPassword, "jira-password", os.Getenv("SVC_PASSWORD"), "service password")
 	fs.DurationVar(&timeout, "timeout", 1*time.Minute, "timeout")
 	fs.Var(&verbose, "v", "verbose logging")
-	fs.StringVar(&Q.Dir, "queue", "", "queue directory")
+	fs.StringVar(&queuesDir, "queues", "", "queues directory")
 	ucd, err := os.UserCacheDir()
 	if err != nil {
 		return err

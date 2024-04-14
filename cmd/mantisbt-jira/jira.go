@@ -28,9 +28,9 @@ import (
 type Jira struct {
 	URL        *url.URL
 	tokens     map[string]*Token
-	HTTPClient *http.Client
+	HTTPClient *http.Client `json:"-"`
 	token      *Token
-	socket     string
+	// socket     string
 	tokensFile string
 }
 
@@ -895,10 +895,10 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		logger.Error("do", "url", req.URL.String(), "method", req.Method, "dur", time.Since(start).String(), "error", err)
 		return nil, changed, err
 	}
-	logger.Info("do", "url", req.URL.String(), "method", req.Method, "dur", time.Since(start).String(), "hasBody", resp.Body != nil, "status", resp.Status)
 	if resp == nil {
 		return nil, changed, fmt.Errorf("empty response")
 	}
+	logger.Info("do", "url", req.URL.String(), "method", req.Method, "dur", time.Since(start).String(), "hasBody", resp.Body != nil, "status", resp.Status)
 	if logEnabled {
 		b, err := httputil.DumpResponse(resp, true)
 		logger.Debug("Do", "response", string(b), "dumpErr", err)

@@ -3,18 +3,22 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha512"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"time"
+
+	"github.com/google/renameio/v2"
 
 	"github.com/UNO-SOFT/mantisbt-plugins-Jira/cmd/mantisbt-jira/dirq"
 )
 
-type queue struct {
-	dirq.Queue
-}
+const configFileName = "jira-config.json"
 
 type task struct {
 	Name               string
@@ -23,18 +27,36 @@ type task struct {
 	Data               []byte
 }
 
-func (Q queue) Enqueue(ctx context.Context, t task) error {
+func (svc *SVC) Enqueue(ctx context.Context, queuesDir string, t task) error {
+	if svc.queueName != "" {
+		b, err := json.Marshal(svc)
+		if err != nil {
+			return err
+		}
+		hsh := sha512.Sum512_224(b)
+		svc.queueName = base64.URLEncoding.EncodeToString(hsh[:])
+		dir := filepath.Join(queuesDir, svc.queueName)
+		_ = os.MkdirAll(dir, 0750)
+		if err = renameio.WriteFile(
+			filepath.Join(dir, configFileName), b, 0400,
+		); err != nil {
+			return fmt.Errorf("write %q: %w", filepath.Join(dir, configFileName), err)
+		}
+		if svc.queue, err = dirq.New(dir); err != nil {
+			return err
+		}
+	}
 	body, err := json.Marshal(t)
 	if err != nil {
 		return err
 	}
-	return Q.Queue.Enqueue(body)
+	return svc.queue.Enqueue(body)
 }
 
-func serve(ctx context.Context, svc Jira, dir string) error {
-	logger.Debug("serve", "svc", svc, "dir", dir)
+func serve(ctx context.Context, dir string) error {
+	logger.Debug("serve", "dir", dir)
 
-	f := func(ctx context.Context, p []byte) error {
+	f := func(ctx context.Context, svc Jira, p []byte) error {
 		logger.Debug("Dequeue", "data", p)
 		var t task
 		if err := json.Unmarshal(p, &t); err != nil {
@@ -51,35 +73,84 @@ func serve(ctx context.Context, svc Jira, dir string) error {
 		default:
 			return fmt.Errorf("%q: %w", t.Name, errUnknownCommand)
 		}
+	}
+
+	seen := make(map[string]struct{})
+	F := func() error {
+		dis, err := os.ReadDir(dir)
+		if len(dis) == 0 && err != nil {
+			return fmt.Errorf("ReadDir(%q): %w", dir, err)
+		}
+		for _, di := range dis {
+			if !di.Type().IsDir() {
+				continue
+			}
+			if _, ok := seen[di.Name()]; ok {
+				continue
+			}
+			seen[di.Name()] = struct{}{}
+			dir := filepath.Join(dir, di.Name())
+			fn := filepath.Join(dir, configFileName)
+			var svc SVC
+			if b, err := os.ReadFile(fn); err != nil {
+				if !os.IsNotExist(err) {
+					logger.Warn("ReadFile(%q): %w", fn, err)
+				}
+				continue
+			} else if err = json.Unmarshal(b, &svc); err != nil {
+				logger.Error("unmarshal %q: %w", string(b), err)
+				continue
+			}
+			if err = svc.init(); err != nil {
+				return err
+			}
+			Q, err := dirq.New(dir)
+			if err != nil {
+				return err
+			}
+			g := func(ctx context.Context, msg []byte) error {
+				return f(ctx, svc.Jira, msg)
+			}
+			if err := Q.Dequeue(ctx, g); err != nil && !errors.Is(err, dirq.ErrEmpty) {
+				return err
+			}
+
+			ticker := time.NewTicker(time.Minute)
+			go func() {
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case <-ticker.C:
+						if err := Q.Dequeue(ctx, g); err != nil {
+							if errors.Is(err, dirq.ErrEmpty) {
+								logger.Info("Dequeue empty")
+							} else {
+								logger.Error("Dequeue", "error", err)
+							}
+						}
+					}
+				}
+			}()
+			go Q.Watch(ctx, g)
+		}
 		return nil
 	}
-	var Q queue
-	var err error
-	if Q.Queue, err = dirq.New(dir); err != nil {
-		return err
-	}
-	if err := Q.Dequeue(ctx, f); err != nil && !errors.Is(err, dirq.ErrEmpty) {
+
+	if err := F(); err != nil {
 		return err
 	}
 	ticker := time.NewTicker(time.Minute)
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if err := Q.Dequeue(ctx, f); err != nil {
-					if errors.Is(err, dirq.ErrEmpty) {
-						logger.Info("Dequeue empty")
-					} else {
-						logger.Error("Dequeue", "error", err)
-					}
-				}
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			if err := F(); err != nil {
+				return err
 			}
 		}
-	}()
-
-	return Q.Watch(ctx, f)
+	}
 }
 
 var errUnknownCommand = errors.New("unknown command")
