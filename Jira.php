@@ -167,7 +167,7 @@ $this->log( 'comment added' );
 				$t_args[] = escapeshellarg( '-jira-' . $k . '=' . $v );
 			}
 		}
-		$t_args[] = '-queue=/var/local/mantis/jira' . (SYS_FLAVOR == 'dev' ? '-dev' : '');
+		$t_args[] = '-queues=/var/local/mantis/jira';
 		
 		$t_output = array();
 		$t_args = implode( ' ', $t_args ) . ' ' . escapeshellarg( $p_subcommand );

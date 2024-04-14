@@ -1,0 +1,21 @@
+[Unit]
+Description=JIRA-MantisBT queue
+
+[Service]
+Restart=always
+
+User=aegon
+Group=users
+WorkingDirectory=/var/local/mantis/jira
+ReadWriteDirectories=/var/local/mantis/jira /home/aegon/.cache
+
+ExecStart=/usr/local/bin/mantisbt-jira -v=2 -queues=/var/local/mantis/jira serve
+
+PrivateTmp=true
+PrivateDevices=true
+#ProtectHome=true
+ProtectSystem=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

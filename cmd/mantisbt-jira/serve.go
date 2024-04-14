@@ -28,7 +28,8 @@ type task struct {
 }
 
 func (svc *SVC) Enqueue(ctx context.Context, queuesDir string, t task) error {
-	if svc.queueName != "" {
+	logger.Info("Enqueue", "queuesDir", queuesDir, "queue", svc.queueName)
+	if svc.queueName == "" || svc.queue.Dir == "" {
 		b, err := json.Marshal(svc)
 		if err != nil {
 			return err
@@ -37,15 +38,18 @@ func (svc *SVC) Enqueue(ctx context.Context, queuesDir string, t task) error {
 		svc.queueName = base64.URLEncoding.EncodeToString(hsh[:])
 		dir := filepath.Join(queuesDir, svc.queueName)
 		_ = os.MkdirAll(dir, 0750)
-		if err = renameio.WriteFile(
-			filepath.Join(dir, configFileName), b, 0400,
-		); err != nil {
-			return fmt.Errorf("write %q: %w", filepath.Join(dir, configFileName), err)
+		fn := filepath.Join(dir, configFileName)
+		logger.Info("write config", "file", fn)
+		if err = renameio.WriteFile(fn, b, 0400); err != nil {
+			logger.Error("Write config", "file", fn, "error", err)
+			return fmt.Errorf("write %q: %w", fn, err)
 		}
 		if svc.queue, err = dirq.New(dir); err != nil {
+			logger.Error("new queue", "dir", dir, "error", err)
 			return err
 		}
 	}
+
 	body, err := json.Marshal(t)
 	if err != nil {
 		return err
@@ -91,8 +95,10 @@ func serve(ctx context.Context, dir string) error {
 			seen[di.Name()] = struct{}{}
 			dir := filepath.Join(dir, di.Name())
 			fn := filepath.Join(dir, configFileName)
+			logger.Info("Read config", "file", fn)
 			var svc SVC
 			if b, err := os.ReadFile(fn); err != nil {
+				logger.Warn("Read config", "file", fn, "error", err)
 				if !os.IsNotExist(err) {
 					logger.Warn("ReadFile(%q): %w", fn, err)
 				}
