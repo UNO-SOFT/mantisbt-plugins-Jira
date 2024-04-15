@@ -42,6 +42,7 @@ func (svc *SVC) GetMantisID(ctx context.Context, issueID string) (string, error)
 
 func (svc *SVC) checkMantisIssueID(ctx context.Context, issueID string, mantisID int) (bool, error) {
 	if mantisID == 0 {
+		logger.Warn("checkMantisIssueID", "mantisID", mantisID)
 		return true, nil
 	}
 	// $t_mantis_id = trim(
@@ -56,7 +57,7 @@ func (svc *SVC) checkMantisIssueID(ctx context.Context, issueID string, mantisID
 		logger.Error("IssueGet", "issueID", issueID, "error", err)
 		return false, err
 	}
-	logger.Info("issue MantisID", "issueID", issueID, "mantisID", issueMantisID)
+	logger.Info("checkMantisIssueID", "mantisID", mantisID, "issueID", issueID, "issueMantisID", issueMantisID)
 	// fmt.Println(issue.Fields.MantisID)
 	i, err := strconv.Atoi(issueMantisID)
 	return i == mantisID, err
