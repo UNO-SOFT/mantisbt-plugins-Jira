@@ -87,10 +87,11 @@ func Main() error {
 		svc.BaseURL = DefaultJiraURL
 	}
 
+	var mantisID int
 	fs := flag.NewFlagSet("attach", flag.ContinueOnError)
+	fs.IntVar(&mantisID, "mantisid", 0, "mantisID")
 	flagAttachFileName := fs.String("filename", "", "override file name")
-	addAttachmentCmd := ffcli.Command{Name: "attach",
-		FlagSet: fs,
+	addAttachmentCmd := ffcli.Command{Name: "attach", FlagSet: fs,
 		Exec: func(ctx context.Context, args []string) error {
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
@@ -121,7 +122,9 @@ func Main() error {
 					return err
 				}
 				if err = svc.Enqueue(ctx, queuesDir, task{
-					Name: "IssueAddAttachment", IssueID: issueID, FileName: fileName, MIMEType: mimeType, Data: b,
+					Name:    "IssueAddAttachment",
+					IssueID: issueID, MantisID: mantisID,
+					FileName: fileName, MIMEType: mimeType, Data: b,
 				}); err != nil {
 					logger.Error("queue", "error", err)
 				} else {
@@ -131,11 +134,18 @@ func Main() error {
 			if err = svc.init(); err != nil {
 				return err
 			}
+			if ok, err := svc.checkMantisIssueID(ctx, issueID, mantisID); err != nil {
+				return err
+			} else if !ok {
+				return nil
+			}
 			return svc.IssueAddAttachment(ctx, issueID, fileName, mimeType, io.MultiReader(bytes.NewReader(b), r))
 		},
 	}
 
-	addCommentCmd := ffcli.Command{Name: "comment",
+	fs = flag.NewFlagSet("attach", flag.ContinueOnError)
+	fs.IntVar(&mantisID, "mantisid", 0, "mantisID")
+	addCommentCmd := ffcli.Command{Name: "comment", FlagSet: fs,
 		Exec: func(ctx context.Context, args []string) error {
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
@@ -150,7 +160,8 @@ func Main() error {
 			}
 			if queuesDir != "" {
 				if err = svc.Enqueue(ctx, queuesDir, task{
-					Name: "IssueAddComment", IssueID: issueID, Comment: body,
+					Name:     "IssueAddComment",
+					MantisID: mantisID, IssueID: issueID, Comment: body,
 				}); err != nil {
 					logger.Error("queue", "error", err)
 				} else {
@@ -159,6 +170,11 @@ func Main() error {
 			}
 			if err = svc.init(); err != nil {
 				return err
+			}
+			if ok, err := svc.checkMantisIssueID(ctx, issueID, mantisID); err != nil {
+				return err
+			} else if !ok {
+				return nil
 			}
 			return svc.IssueAddComment(ctx, issueID, body)
 		},
@@ -208,13 +224,13 @@ func Main() error {
 			if err = svc.init(); err != nil {
 				return err
 			}
-			issue, err := svc.IssueGet(ctx, issueID, []string{"customfield_15902"})
+			issueMantisID, err := svc.GetMantisID(ctx, issueID)
 			if err != nil {
 				fmt.Println("ERR", err)
 				return err
 			}
-			logger.Info("issue MantisID", "issueID", issueID, "mantisID", issue.Fields.MantisID)
-			fmt.Println(issue.Fields.MantisID)
+			logger.Info("issue MantisID", "issueID", issueID, "mantisID", issueMantisID)
+			fmt.Println(issueMantisID)
 			return nil
 		},
 	}

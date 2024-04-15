@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/google/renameio/v2"
@@ -24,7 +25,42 @@ type task struct {
 	Name               string
 	IssueID, Comment   string
 	FileName, MIMEType string
+	MantisID           int
 	Data               []byte
+}
+
+func (svc *SVC) GetMantisID(ctx context.Context, issueID string) (string, error) {
+	issue, err := svc.IssueGet(ctx, issueID, []string{"customfield_15902"})
+	if err != nil {
+		logger.Error("IssueGet", "issueID", issueID, "error", err)
+		return "", err
+	}
+	logger.Info("issue MantisID", "issueID", issueID, "mantisID", issue.Fields.MantisID)
+	// fmt.Println(issue.Fields.MantisID)
+	return issue.Fields.MantisID, nil
+}
+
+func (svc *SVC) checkMantisIssueID(ctx context.Context, issueID string, mantisID int) (bool, error) {
+	if mantisID == 0 {
+		return true, nil
+	}
+	// $t_mantis_id = trim(
+	// 	$this->call("issue", array( "mantisID", $t_issueid ) )[1]
+	// );
+	// if( $t_mantis_id != $p_bug_id ) {
+	// 	$this->log("mantisID=$t_mantis_id bugID=$p_bug_id");
+	// 	return;
+	// }
+	issueMantisID, err := svc.GetMantisID(ctx, issueID)
+	if err != nil {
+		logger.Error("IssueGet", "issueID", issueID, "error", err)
+		return false, err
+	}
+	logger.Info("issue MantisID", "issueID", issueID, "mantisID", issueMantisID)
+	// fmt.Println(issue.Fields.MantisID)
+	i, err := strconv.Atoi(issueMantisID)
+	return i == mantisID, err
+
 }
 
 func (svc *SVC) Enqueue(ctx context.Context, queuesDir string, t task) error {
@@ -60,7 +96,7 @@ func (svc *SVC) Enqueue(ctx context.Context, queuesDir string, t task) error {
 func serve(ctx context.Context, dir string) error {
 	logger.Debug("serve", "dir", dir)
 
-	f := func(ctx context.Context, svc Jira, p []byte) error {
+	f := func(ctx context.Context, svc *SVC, p []byte) error {
 		logger.Debug("Dequeue", "data", p)
 		var t task
 		if err := json.Unmarshal(p, &t); err != nil {
@@ -69,14 +105,23 @@ func serve(ctx context.Context, dir string) error {
 		logger.Debug("dequeued", slog.String("name", t.Name))
 		switch t.Name {
 		case "IssueAddComment":
-			return svc.IssueAddComment(ctx, t.IssueID, t.Comment)
+			if ok, err := svc.checkMantisIssueID(ctx, t.IssueID, t.MantisID); err != nil {
+				return err
+			} else if ok {
+				return svc.IssueAddComment(ctx, t.IssueID, t.Comment)
+			}
 
 		case "IssueAddAttachment":
-			return svc.IssueAddAttachment(ctx, t.IssueID, t.FileName, t.MIMEType, bytes.NewReader(t.Data))
+			if ok, err := svc.checkMantisIssueID(ctx, t.IssueID, t.MantisID); err != nil {
+				return err
+			} else if ok {
+				return svc.IssueAddAttachment(ctx, t.IssueID, t.FileName, t.MIMEType, bytes.NewReader(t.Data))
+			}
 
 		default:
 			return fmt.Errorf("%q: %w", t.Name, errUnknownCommand)
 		}
+		return nil
 	}
 
 	seen := make(map[string]struct{})
@@ -115,7 +160,7 @@ func serve(ctx context.Context, dir string) error {
 				return err
 			}
 			g := func(ctx context.Context, msg []byte) error {
-				return f(ctx, svc.Jira, msg)
+				return f(ctx, &svc, msg)
 			}
 			if err := Q.Dequeue(ctx, g); err != nil && !errors.Is(err, dirq.ErrEmpty) {
 				return err

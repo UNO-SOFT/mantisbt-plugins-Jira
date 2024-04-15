@@ -86,13 +86,13 @@ class JiraPlugin extends MantisPlugin {
 			return;
 		}
 
-		$t_mantis_id = trim(
-			$this->call("issue", array( "mantisID", $t_issueid ) )[1]
-		);
-		if( $t_mantis_id != $p_bug_id ) {
-			$this->log("mantisID=$t_mantis_id bugID=$p_bug_id");
-			return;
-		}
+		// $t_mantis_id = trim(
+		// 	$this->call("issue", array( "mantisID", $t_issueid ) )[1]
+		// );
+		// if( $t_mantis_id != $p_bug_id ) {
+		// 	$this->log("mantisID=$t_mantis_id bugID=$p_bug_id");
+		// 	return;
+		// }
 
 		$t_bugnote = null;
 		if( $p_bugnote_id ) {
@@ -130,7 +130,9 @@ $this->log( 'email: ' . var_export( $matches, TRUE ) . ' uid=' . $t_uid );
 
 $this->log( 'note length: ' .strlen( $t_bugnote->note ) );
 			if( strlen($t_bugnote->note) !== 0 ) {
-				$this->call("comment", array( $t_issueid, $t_bugnote->note . "\n\n<<" . user_get_realname( $t_bugnote->reporter_id ) . '>>' ) );
+				$this->call("comment", array( 
+					"-mantisid=" . $p_bug_id,
+					$t_issueid, $t_bugnote->note . "\n\n<<" . user_get_realname( $t_bugnote->reporter_id ) . '>>' ) );
 $this->log( 'comment added' );
 			}
 		}
@@ -152,6 +154,7 @@ $this->log( 'comment added' );
 				continue;
 			}
 			$this->call( "attach", array(
+				"-mantisid=" . $p_bug_id,
 				"-filename=" . $t_file['name'], 
 				$t_issueid, 
 				$t_local_disk_file,
