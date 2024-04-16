@@ -97,7 +97,7 @@ func (svc *SVC) Enqueue(ctx context.Context, queuesDir string, t task) error {
 func serve(ctx context.Context, dir string) error {
 	logger.Debug("serve", "dir", dir)
 
-	f := func(ctx context.Context, svc *SVC, p []byte) error {
+	f := func(ctx context.Context, svc *SVC, p []byte, logger *slog.Logger) error {
 		logger.Debug("Dequeue", "data", p)
 		var t task
 		if err := json.Unmarshal(p, &t); err != nil {
@@ -140,6 +140,7 @@ func serve(ctx context.Context, dir string) error {
 			}
 			seen[di.Name()] = struct{}{}
 			dir := filepath.Join(dir, di.Name())
+			logger := logger.With("queue", dir)
 			fn := filepath.Join(dir, configFileName)
 			logger.Info("Read config", "file", fn)
 			var svc SVC
@@ -153,6 +154,7 @@ func serve(ctx context.Context, dir string) error {
 				logger.Error("unmarshal %q: %w", string(b), err)
 				continue
 			}
+			// svc.TokensFile = filepath.Join(dir, "jira-token.json")
 			if err = svc.init(); err != nil {
 				return err
 			}
@@ -161,9 +163,13 @@ func serve(ctx context.Context, dir string) error {
 				return err
 			}
 			g := func(ctx context.Context, msg []byte) error {
-				return f(ctx, &svc, msg)
+				return f(ctx, &svc, msg, logger)
 			}
 			if err := Q.Dequeue(ctx, g); err != nil && !errors.Is(err, dirq.ErrEmpty) {
+				if errors.Is(err, errAuthenticate) {
+					logger.Warn("Dequeue", "error", err)
+					continue
+				}
 				return err
 			}
 
@@ -177,6 +183,9 @@ func serve(ctx context.Context, dir string) error {
 						if err := Q.Dequeue(ctx, g); err != nil {
 							if errors.Is(err, dirq.ErrEmpty) {
 								logger.Info("Dequeue empty")
+							} else if errors.Is(err, errAuthenticate) {
+								logger.Warn("Dequeue", "error", err)
+								return
 							} else {
 								logger.Error("Dequeue", "error", err)
 							}

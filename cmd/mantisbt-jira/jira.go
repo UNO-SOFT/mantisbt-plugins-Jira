@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -763,7 +764,7 @@ func (t *Token) init() error {
 	return nil
 }
 func (t *Token) IsValid() bool {
-	return t != nil && t.JSessionID != "" && time.Now().Before(t.till)
+	return t != nil && t.JSessionID != "" && time.Now().Before(t.till) && !t.rawToken.JIRAError.IsValid()
 }
 
 type JIRAError struct {
@@ -800,6 +801,8 @@ func (je *JIRAError) Error() string {
 func (je *JIRAError) IsValid() bool {
 	return je != nil && (je.Code != "" || je.Fault.Code != "" || len(je.Messages) != 0)
 }
+
+var errAuthenticate = errors.New("authentication error")
 
 func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Request) ([]byte, bool, error) {
 	if httpClient == nil {
@@ -838,7 +841,7 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		resp, err := httpClient.Do(req.WithContext(ctx))
 		if err != nil {
 			logger.Error("authenticate", "dur", time.Since(start).String(), "url", t.AuthURL, "error", err)
-			return nil, changed, err
+			return nil, changed, fmt.Errorf("%w: %w", errAuthenticate, err)
 		}
 		if resp == nil || resp.Body == nil {
 			return nil, changed, fmt.Errorf("empty response")
@@ -848,13 +851,13 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		resp.Body.Close()
 		logger.Debug("authenticate", "response", buf.String())
 		if err != nil {
-			return nil, changed, err
-		}
-		if buf.Len() == 0 {
-			return nil, changed, fmt.Errorf("empty response")
-		}
-		if err = json.NewDecoder(bytes.NewReader(buf.Bytes())).Decode(&t); err != nil {
-			return nil, changed, fmt.Errorf("decode %q: %w", buf.String(), err)
+			return nil, changed, fmt.Errorf("%w: %w", errAuthenticate, err)
+		} else if buf.Len() == 0 {
+			return nil, changed, fmt.Errorf("%s: empty response", errAuthenticate)
+		} else if err = json.NewDecoder(bytes.NewReader(buf.Bytes())).Decode(&t); err != nil {
+			return nil, changed, fmt.Errorf("%w: decode %q: %w", errAuthenticate, buf.String(), err)
+		} else if !t.IsValid() {
+			return nil, changed, fmt.Errorf("%w: got invalid token: %+v", errAuthenticate, t)
 		}
 		changed = true
 		/*

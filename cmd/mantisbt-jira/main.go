@@ -33,7 +33,7 @@ var logger = zlog.NewLogger(zlog.MaybeConsoleHandler(&verbose, os.Stderr)).SLog(
 
 const (
 	// DefaultJiraURL is the default JIRA URL
-	DefaultJiraURL = "https://partnerapi-uat.aegon.hu/partner/v1/ticket/update"
+	DefaultJiraURL = "https://partnerapi-test.aegon.hu/partner/v1/ticket/update"
 )
 
 func main() {
