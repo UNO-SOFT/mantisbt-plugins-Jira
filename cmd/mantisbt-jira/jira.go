@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/renameio"
+	"github.com/google/renameio/v2"
 	"github.com/klauspost/compress/gzhttp"
 )
 
