@@ -25,6 +25,8 @@ import (
 	"github.com/klauspost/compress/gzhttp"
 )
 
+// https://docs.atlassian.com/software/jira/docs/api/REST/9.12.2/#api/2/issue-addComment
+// https://docs.atlassian.com/software/jira/docs/api/REST/9.12.2/#api/2/issue-doTransition
 // https://partnerapi-uat.aegon.hu/partner/v1/ticket/update/openapi.json
 type Jira struct {
 	URL        *url.URL
@@ -475,6 +477,7 @@ func (issue jiraIssueFields) MarshalJSON() ([]byte, error) {
 	return b, fmt.Errorf("b[-1]=%c c=%s", b[len(b)-1], c)
 }
 
+// IssueGet gets the data for the issue, possibly filtering the returned fields.
 func (svc *Jira) IssueGet(ctx context.Context, issueID string, fields []string) (JIRAIssue, error) {
 	URL := svc.URLFor("issue", issueID, "")
 	if len(fields) != 0 {
@@ -497,6 +500,8 @@ func (svc *Jira) IssueGet(ctx context.Context, issueID string, fields []string) 
 	err = json.Unmarshal(resp, &issue)
 	return issue, err
 }
+
+// IssuePut puts (updates) an issue.
 func (svc *Jira) IssuePut(ctx context.Context, issue JIRAIssue) error {
 	b, err := json.Marshal(issue)
 	if err != nil {
@@ -510,6 +515,8 @@ func (svc *Jira) IssuePut(ctx context.Context, issue JIRAIssue) error {
 	logger.Info("IssuePut", "resp", resp, "error", err)
 	return err
 }
+
+// Load the tokens file.
 func (svc *Jira) Load(tokensFile, jiraUser, jiraPassword string) {
 	if svc.token == nil {
 		svc.token = &Token{Username: jiraUser, Password: jiraPassword}
@@ -555,6 +562,8 @@ func (svc *Jira) Load(tokensFile, jiraUser, jiraPassword string) {
 	}
 	_ = os.Remove(fh.Name())
 }
+
+// URLFor returns the canonical url for the issue and the action.
 func (svc *Jira) URLFor(typ, id, action string) *url.URL {
 	URL := svc.URL.JoinPath("/"+typ, url.PathEscape(id))
 	if action != "" {
@@ -562,6 +571,8 @@ func (svc *Jira) URLFor(typ, id, action string) *url.URL {
 	}
 	return URL
 }
+
+// NewRequest creates a new request.
 func (svc *Jira) NewRequest(ctx context.Context, method string, URL *url.URL, body []byte) (*http.Request, error) {
 	var r io.Reader
 	if body != nil {
@@ -607,6 +618,7 @@ type getCommentsResp struct {
 	Total      int32         `json:"total,omitempty"`
 }
 
+// IssueComments returns the comments for the issue.
 func (svc *Jira) IssueComments(ctx context.Context, issueID string) ([]JIRAComment, error) {
 	URL := svc.URLFor("issue", issueID, "comment")
 	q := URL.Query()
@@ -632,6 +644,7 @@ type JSONCommentBody struct {
 	//Visibility JIRAVisibility `json:"visibility,omitempty"`
 }
 
+// IssueAddComment adds a comment to the issue.
 func (svc *Jira) IssueAddComment(ctx context.Context, issueID, body string) error {
 	URL := svc.URLFor("issue", issueID, "comment")
 	b, err := json.Marshal(JSONCommentBody{Body: body}) //, Visibility: JIRAVisibility{Type: "role", Value: "Administrators"}})
@@ -699,6 +712,88 @@ type JIRAAttachment struct {
 	Size      int      `json:"size,omitempty"`
 }
 
+// IssueTransitions returns the possible transitions for the issue.
+//
+// GET /rest/api/2/issue/{issueIdOrKey}/transitions
+func (svc *Jira) IssueTransitions(ctx context.Context, issueID string, fields bool) ([]JIRATransition, error) {
+	URL := svc.URLFor("issue", issueID, "transitions")
+	if fields {
+		q := URL.Query()
+		q.Set("expand", "transitions.fields")
+		URL.RawQuery = q.Encode()
+	}
+	req, err := svc.NewRequest(ctx, "GET", URL, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := svc.Do(ctx, req)
+	logger.Info("IssueTransitions", "resp", resp, "error", err)
+	if err != nil {
+		return nil, err
+	}
+	var transitions getTransitionsResp
+	err = json.Unmarshal(resp, &transitions)
+	return transitions.Transitions, err
+}
+
+type getTransitionsResp struct {
+	Expand      string           `json:"expand"`
+	Transitions []JIRATransition `json:"transitions"`
+}
+type JIRATransition struct {
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	OpsbarSequence int            `json:"opsbarSequence"`
+	To             JIRAStatus     `json:"to"`
+	Fields         map[string]any `json:"fields"`
+}
+type JIRAStatus struct {
+	Self        string             `json:"self"`
+	Color       string             `json:"statusColor"`
+	Description string             `json:"description"`
+	IconURL     string             `json:"iconURL"`
+	Name        string             `json:"name"`
+	ID          string             `json:"id"`
+	Category    JIRAStatusCategory `json:"statusCategory"`
+}
+type JIRAStatusCategory struct {
+	Self  string `json:"self"`
+	ID    int    `json:"id"`
+	Key   string `json:"key"`
+	Color string `json:"colorName"`
+	Name  string `json:"name"`
+}
+
+type JIRATransitionBody struct {
+	Transition struct {
+		ID string `json:"id"`
+	} `json:"transition"`
+}
+
+// IssueDoTransition transits the issue's status.
+func (svc *Jira) IssueDoTransition(ctx context.Context, issueID, transition string) error {
+	URL := svc.URLFor("issue", issueID, "transitions")
+	var body JIRATransitionBody
+	body.Transition.ID = transition
+	b, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := svc.NewRequest(ctx, "POST", URL, b)
+	if err != nil {
+		return err
+	}
+	resp, err := svc.Do(ctx, req)
+	logger.Info("IssueDoTransition", "resp", resp, "error", err)
+	if err != nil {
+		return err
+	}
+	// var comment JIRAComment
+	// return json.Unmarshal(resp, &comment)
+	return nil
+}
+
+// Do the request with the tokens.
 func (svc *Jira) Do(ctx context.Context, req *http.Request) (json.RawMessage, error) {
 	b, changed, err := svc.token.do(ctx, svc.HTTPClient, req)
 	if changed {
