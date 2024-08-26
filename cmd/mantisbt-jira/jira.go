@@ -501,6 +501,34 @@ func (svc *Jira) IssueGet(ctx context.Context, issueID string, fields []string) 
 	return issue, err
 }
 
+// IssueTransiton sends a transition to Jira.
+//
+// POST /rest/api/2/issue/{issueIdOrKey}/transitions
+//
+// https://docs.atlassian.com/software/jira/docs/api/REST/9.12.2/#api/2/issue-doTransition
+func (svc *Jira) IssueTransition(ctx context.Context, issueID, transitionID string) error {
+	URL := svc.URLFor("issue", issueID, "transitions")
+	type transitionReq struct {
+		ID string `json:"id"`
+	}
+	b, err := json.Marshal(transitionReq{ID: transitionID})
+	if err != nil {
+		return err
+	}
+	req, err := svc.NewRequest(ctx, "POST", URL, b)
+	if err != nil {
+		return err
+	}
+	resp, err := svc.Do(ctx, req)
+	if err == nil {
+		logger.Debug("IssueTransition do", "resp", resp, "error", err)
+	} else {
+		logger.Error("IssueTransition do", "resp", resp, "error", err)
+		return err
+	}
+	return err
+}
+
 // IssuePut puts (updates) an issue.
 func (svc *Jira) IssuePut(ctx context.Context, issue JIRAIssue) error {
 	b, err := json.Marshal(issue)

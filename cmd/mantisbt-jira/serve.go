@@ -25,6 +25,7 @@ type task struct {
 	Name               string
 	IssueID, Comment   string
 	FileName, MIMEType string
+	TransitionID       string
 	MantisID           int
 	Data               []byte
 }
@@ -104,25 +105,25 @@ func serve(ctx context.Context, dir string) error {
 			return err
 		}
 		logger.Debug("dequeued", slog.String("name", t.Name))
+		if ok, err := svc.checkMantisIssueID(ctx, t.IssueID, t.MantisID); err != nil {
+			return err
+		} else if !ok {
+			logger.Warn("not a JIRA issue", "issueID", t.IssueID, "mantisID", t.MantisID, "task", t)
+			return nil
+		}
 		switch t.Name {
 		case "IssueAddComment":
-			if ok, err := svc.checkMantisIssueID(ctx, t.IssueID, t.MantisID); err != nil {
-				return err
-			} else if ok {
-				return svc.IssueAddComment(ctx, t.IssueID, t.Comment)
-			}
+			return svc.IssueAddComment(ctx, t.IssueID, t.Comment)
 
 		case "IssueAddAttachment":
-			if ok, err := svc.checkMantisIssueID(ctx, t.IssueID, t.MantisID); err != nil {
-				return err
-			} else if ok {
-				return svc.IssueAddAttachment(ctx, t.IssueID, t.FileName, t.MIMEType, bytes.NewReader(t.Data))
-			}
+			return svc.IssueAddAttachment(ctx, t.IssueID, t.FileName, t.MIMEType, bytes.NewReader(t.Data))
+
+		case "IssueDoTransition":
+			return svc.IssueDoTransition(ctx, t.IssueID, t.TransitionID)
 
 		default:
 			return fmt.Errorf("%q: %w", t.Name, errUnknownCommand)
 		}
-		return nil
 	}
 
 	seen := make(map[string]struct{})

@@ -59,6 +59,7 @@ class JiraPlugin extends MantisPlugin {
 		return array(
 			'EVENT_BUGNOTE_ADD' => 'bugnote_add',
 			//'EVENT_BUGNOTE_EDIT' => 'bugnote_edit',
+			'EVENT_UPDATE_BUG' => 'bug_update',
 			'EVENT_MENU_MANAGE' => 'menu_manage',
 		);
 	}
@@ -68,6 +69,28 @@ class JiraPlugin extends MantisPlugin {
 					return array( '<a href="' . plugin_page( 'config.php' ) . '">'
 							.  plugin_lang_get('config') . '</a>', );
 			}
+	}
+
+	function bug_update( $p_event, $p_old, &$p_new ) {
+		if( $p_old->status == $p_new->status || $p_old->status >= 80 ) {
+			return;
+		}
+		$t_tran_id = 0;
+		// „Új”  „Folyamatban” státuszváltás esetében a 11 –es numerikus érték.
+		if( $p_new->status == 50 ) { // folyamatban
+			$t_tran_id = 11;
+		// „Folyamatban”  „Átadva” tranzíció  esetében a 21 –es numerikus érték. 
+		} elseif( $p_new->status >= 80 ) { // átadva
+			$t_tran_id = 21;
+		}
+		if( $t_tran_id != 0 ) {
+			if( strlen($t_bugnote->note) !== 0 ) {
+				$this->call("issue", array(
+					"transition",
+					$p_bug_id,
+					$t_tran_id ) );
+			}
+		}
 	}
 
 	function bugnote_add( $p_event_name, $p_bug_id, $p_bugnote_id, $files ) {

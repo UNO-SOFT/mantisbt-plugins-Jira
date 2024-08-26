@@ -216,6 +216,7 @@ func Main() error {
 			return nil
 		},
 	}
+
 	issueMantisIDCmd := ffcli.Command{Name: "mantisID",
 		Exec: func(ctx context.Context, args []string) error {
 			ctx, cancel := context.WithTimeout(ctx, timeout)
@@ -235,9 +236,30 @@ func Main() error {
 		},
 	}
 
+	issueDoTransitionCmd := ffcli.Command{Name: "transition",
+		ShortUsage: "transition <issueID> <transitionID>",
+		Exec: func(ctx context.Context, args []string) error {
+			ctx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
+			issueID := args[0]
+			transitionID := args[1]
+			if err = svc.init(); err != nil {
+				return err
+			}
+			err := svc.IssueDoTransition(ctx, issueID, transitionID)
+			if err != nil {
+				fmt.Println("ERR", err)
+				return err
+			}
+			return nil
+		},
+	}
+
 	issueCmd := ffcli.Command{Name: "issue",
-		Subcommands: []*ffcli.Command{&issueGetCmd, &issueExistsCmd, &issueMantisIDCmd},
-		Exec:        issueExistsCmd.Exec,
+		Subcommands: []*ffcli.Command{
+			&issueGetCmd, &issueExistsCmd,
+			&issueMantisIDCmd, &issueDoTransitionCmd},
+		Exec: issueExistsCmd.Exec,
 	}
 
 	serveCmd := ffcli.Command{Name: "serve",
