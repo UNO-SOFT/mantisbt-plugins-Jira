@@ -126,6 +126,9 @@ class JiraPlugin extends MantisPlugin {
 			if( VS_PUBLIC != $t_bugnote->view_state ) {
 				return;
 			}
+
+//TODO: ha kérdésre jön megjegyzés, akkor át kell állítani folyamatban-ra, ÉS ezt elküldeni a Jira-nak is!
+			
 			if( $t_bugnote->reporter_id == $this->skip_reporter_id ) {
 				// feldolg a végét
 				// <<Kiss.Balazs@aegon.hu>>

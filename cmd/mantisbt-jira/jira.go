@@ -23,6 +23,8 @@ import (
 
 	"github.com/google/renameio/v2"
 	"github.com/klauspost/compress/gzhttp"
+	"github.com/rogpeppe/retry"
+	"github.com/tgulacsi/go/iohlp"
 )
 
 // https://docs.atlassian.com/software/jira/docs/api/REST/9.12.2/#api/2/issue-addComment
@@ -925,7 +927,18 @@ func (je *JIRAError) IsValid() bool {
 	return je != nil && (je.Code != "" || je.Fault.Code != "" || len(je.Messages) != 0)
 }
 
-var errAuthenticate = errors.New("authentication error")
+var (
+	errAuthenticate = errors.New("authentication error")
+
+	authStrategy = retry.Strategy{
+		Delay: time.Second, MaxDelay: 5 * time.Second,
+		MaxDuration: time.Minute,
+	}
+	requestStrategy = retry.Strategy{
+		Delay: time.Second, MaxDelay: 5 * time.Minute,
+		MaxDuration: 24 * time.Hour,
+	}
+)
 
 func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Request) ([]byte, bool, error) {
 	if httpClient == nil {
@@ -935,7 +948,8 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		}
 		httpClient.Transport = gzhttp.Transport(httpClient.Transport)
 	}
-	var buf bytes.Buffer
+	logEnabled := logger.Enabled(ctx, slog.LevelDebug)
+	var reqBuf, respBuf bytes.Buffer
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	logger.Debug("IsValid", "token", t, "valid", t.IsValid())
@@ -951,37 +965,64 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		   --data-raw '{ "username": "svc_unosoft", "password": "5h9RP97@qK6l"}'
 		*/
 
-		if err := json.NewEncoder(&buf).Encode(userPass{Username: t.Username, Password: t.Password}); err != nil {
+		if err := json.NewEncoder(&reqBuf).Encode(userPass{
+			Username: t.Username, Password: t.Password,
+		}); err != nil {
 			return nil, changed, err
 		}
-		req, err := http.NewRequestWithContext(ctx, "POST", t.AuthURL+"?grant_type=password", bytes.NewReader(buf.Bytes()))
-		if err != nil {
-			return nil, changed, err
+		try := func() error {
+			req, err := http.NewRequestWithContext(ctx, "POST", t.AuthURL+"?grant_type=password", bytes.NewReader(reqBuf.Bytes()))
+			if err != nil {
+				return err
+			}
+			req.GetBody = func() (io.ReadCloser, error) {
+				return struct {
+					io.Reader
+					io.Closer
+				}{bytes.NewReader(reqBuf.Bytes()), io.NopCloser(nil)}, nil
+			}
+			if logEnabled {
+				logger.Debug("authenticate", "url", t.AuthURL, "body", reqBuf.String())
+			}
+			req.Header.Set("Content-Type", "application/json")
+			start := time.Now()
+			resp, err := httpClient.Do(req.WithContext(ctx))
+			if err != nil {
+				logger.Error("authenticate", "dur", time.Since(start).String(), "url", t.AuthURL, "error", err)
+				return fmt.Errorf("%w: %w", errAuthenticate, err)
+			}
+			if resp == nil || resp.Body == nil {
+				return fmt.Errorf("empty response")
+			}
+			respBuf.Reset()
+			_, err = io.Copy(&respBuf, resp.Body)
+			resp.Body.Close()
+			if logEnabled {
+				logger.Debug("authenticate", "response", respBuf.String())
+			}
+			if err != nil {
+				return fmt.Errorf("%w: %w", errAuthenticate, err)
+			} else if respBuf.Len() == 0 {
+				return fmt.Errorf("%s: empty response", errAuthenticate)
+			} else if err = json.Unmarshal(respBuf.Bytes(), &t); err != nil {
+				return fmt.Errorf("%w: decode %q: %w", errAuthenticate, respBuf.String(), err)
+			} else if !t.IsValid() {
+				return fmt.Errorf("%w: got invalid token: %+v", errAuthenticate, t)
+			}
+			return nil
 		}
-		logger.Debug("authenticate", "url", t.AuthURL, "body", buf.String())
-		req.Header.Set("Content-Type", "application/json")
-		start := time.Now()
-		resp, err := httpClient.Do(req.WithContext(ctx))
-		if err != nil {
-			logger.Error("authenticate", "dur", time.Since(start).String(), "url", t.AuthURL, "error", err)
-			return nil, changed, fmt.Errorf("%w: %w", errAuthenticate, err)
+		if err := try(); err != nil {
+			for iter := authStrategy.Start(); iter.Next(ctx.Done()); {
+				if err = try(); err == nil {
+					break
+				}
+				logger.Error("try", "count", iter.Count(), "error", err)
+			}
+			if err != nil {
+				return nil, changed, err
+			}
 		}
-		if resp == nil || resp.Body == nil {
-			return nil, changed, fmt.Errorf("empty response")
-		}
-		buf.Reset()
-		_, err = io.Copy(&buf, resp.Body)
-		resp.Body.Close()
-		logger.Debug("authenticate", "response", buf.String())
-		if err != nil {
-			return nil, changed, fmt.Errorf("%w: %w", errAuthenticate, err)
-		} else if buf.Len() == 0 {
-			return nil, changed, fmt.Errorf("%s: empty response", errAuthenticate)
-		} else if err = json.NewDecoder(bytes.NewReader(buf.Bytes())).Decode(&t); err != nil {
-			return nil, changed, fmt.Errorf("%w: decode %q: %w", errAuthenticate, buf.String(), err)
-		} else if !t.IsValid() {
-			return nil, changed, fmt.Errorf("%w: got invalid token: %+v", errAuthenticate, t)
-		}
+
 		changed = true
 		/*
 		   answer:
@@ -1007,61 +1048,88 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	*/
 	req.Header.Set("Cookie", "JSESSIONID="+t.JSessionID)
 	req.Header.Set("Authorization", "Bearer "+t.AccessToken)
-	logEnabled := logger.Enabled(ctx, slog.LevelDebug)
-	if logEnabled {
-		b, err := httputil.DumpRequestOut(req, true)
-		logger.Debug("Do", "request", string(b), "dumpErr", err)
-		if err != nil {
-			return nil, changed, err
-		}
-	}
-	start := time.Now()
-	resp, err := httpClient.Do(req.WithContext(ctx))
+	sr, err := iohlp.MakeSectionReader(req.Body, 1<<20)
 	if err != nil {
-		logger.Error("do", "url", req.URL.String(), "method", req.Method, "dur", time.Since(start).String(), "error", err)
 		return nil, changed, err
 	}
-	if resp == nil {
-		return nil, changed, fmt.Errorf("empty response")
+	req.GetBody = func() (io.ReadCloser, error) {
+		return struct {
+			io.Reader
+			io.Closer
+		}{io.NewSectionReader(sr, 0, sr.Size()), io.NopCloser(nil)}, nil
 	}
-	logger.Info("do", "url", req.URL.String(), "method", req.Method, "dur", time.Since(start).String(), "hasBody", resp.Body != nil, "status", resp.Status)
-	if logEnabled {
-		b, err := httputil.DumpResponse(resp, true)
-		logger.Debug("Do", "response", string(b), "dumpErr", err)
-		if err != nil {
-			return nil, changed, err
-		}
-	}
-	if resp.Body == nil {
-		return nil, changed, nil
-	}
-	buf.Reset()
-	_, err = io.Copy(&buf, resp.Body)
-	resp.Body.Close()
-	if err != nil {
-		logger.Error("read request", "error", err)
-	}
-	if bytes.Contains(buf.Bytes(), []byte(`"ErrorCode"`)) ||
-		bytes.Contains(buf.Bytes(), []byte(`"Error"`)) ||
-		bytes.Contains(buf.Bytes(), []byte(`"fault"`)) {
-		var jerr JIRAError
-		err = json.Unmarshal(buf.Bytes(), &jerr)
-		if err != nil {
-			logger.Error("Unmarshal JIRAError", "jErr", jerr, "jErrS", fmt.Sprintf("%#v", jerr), "buf", buf.String(), "error", err)
-		} else {
-			logger.Debug("Unmarshal JIRAError", "jErr", jerr, "jErrS", fmt.Sprintf("%#v", jerr))
-		}
-		if err == nil && jerr.IsValid() {
-			if jerr.Code == "" {
-				jerr.Code = resp.Status
+	req.Body, _ = req.GetBody()
+	first := true
+	try := func() error {
+		if first && logEnabled {
+			b, err := httputil.DumpRequestOut(req, true)
+			logger.Debug("Do", "request", string(b), "dumpErr", err)
+			if err != nil {
+				return err
 			}
-			return nil, changed, &jerr
+		}
+		first = false
+
+		start := time.Now()
+		resp, err := httpClient.Do(req.WithContext(ctx))
+		if err != nil {
+			logger.Error("do", "url", req.URL.String(), "method", req.Method, "dur", time.Since(start).String(), "error", err)
+			return err
+		}
+		if resp == nil {
+			return fmt.Errorf("empty response")
+		}
+		logger.Info("do", "url", req.URL.String(), "method", req.Method, "dur", time.Since(start).String(), "hasBody", resp.Body != nil, "status", resp.Status)
+		if logEnabled {
+			b, err := httputil.DumpResponse(resp, true)
+			logger.Debug("Do", "response", string(b), "dumpErr", err)
+			if err != nil {
+				return err
+			}
+		}
+		if resp.Body == nil {
+			return nil
+		}
+		respBuf.Reset()
+		_, err = io.Copy(&respBuf, resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			logger.Error("read request", "error", err)
+			return err
+		}
+		if bytes.Contains(respBuf.Bytes(), []byte(`"ErrorCode"`)) ||
+			bytes.Contains(respBuf.Bytes(), []byte(`"Error"`)) ||
+			bytes.Contains(respBuf.Bytes(), []byte(`"fault"`)) {
+			var jerr JIRAError
+			err = json.Unmarshal(respBuf.Bytes(), &jerr)
+			if err != nil {
+				logger.Error("Unmarshal JIRAError", "jErr", jerr, "jErrS", fmt.Sprintf("%#v", jerr), "buf", respBuf.String(), "error", err)
+			} else {
+				logger.Debug("Unmarshal JIRAError", "jErr", jerr, "jErrS", fmt.Sprintf("%#v", jerr))
+			}
+			if err == nil && jerr.IsValid() {
+				if jerr.Code == "" {
+					jerr.Code = resp.Status
+				}
+				return &jerr
+			}
+		}
+		if resp.StatusCode >= 400 {
+			return &JIRAError{Code: resp.Status, Message: respBuf.String()}
+		}
+		return nil
+	}
+	if err = try(); err != nil {
+		for iter := requestStrategy.Start(); iter.Next(ctx.Done()); {
+			var jerr *JIRAError
+			if err = try(); err == nil || errors.As(err, &jerr) {
+				break
+			}
+			logger.Error("try", "count", iter.Count(), "error", err)
 		}
 	}
-	if resp.StatusCode >= 400 {
-		return buf.Bytes(), changed, &JIRAError{Code: resp.Status, Message: buf.String()}
-	}
-	return buf.Bytes(), changed, nil
+
+	return respBuf.Bytes(), changed, err
 }
 
 func redactedURL(u *url.URL) string {
