@@ -262,12 +262,14 @@ func Main() error {
 		Exec: issueExistsCmd.Exec,
 	}
 
-	serveCmd := ffcli.Command{Name: "serve",
+	fs = flag.NewFlagSet("serve", flag.ContinueOnError)
+	flagServeEmail := fs.String("alert", "t.gulacsi+jira@unosoft.hu", "comma-separated list of emails to send alerts to")
+	serveCmd := ffcli.Command{Name: "serve", FlagSet: fs,
 		Exec: func(ctx context.Context, args []string) error {
 			if len(args) != 0 {
 				queuesDir = args[0]
 			}
-			return serve(ctx, queuesDir)
+			return serve(ctx, queuesDir, strings.Split(*flagServeEmail, ","))
 		},
 	}
 

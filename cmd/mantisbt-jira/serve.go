@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -95,8 +96,25 @@ func (svc *SVC) Enqueue(ctx context.Context, queuesDir string, t task) error {
 	return svc.queue.Enqueue(body)
 }
 
-func serve(ctx context.Context, dir string) error {
+func serve(ctx context.Context, dir string, alertEmails []string) error {
 	logger.Debug("serve", "dir", dir)
+
+	sendAlert := func(err error) error { return nil }
+	if len(alertEmails) != 0 {
+		var buf bytes.Buffer
+		sendAlert = func(alert error) error {
+			cmd := exec.CommandContext(ctx, "sendmail", alertEmails...)
+			buf.Reset()
+			fmt.Fprintf(&buf, "From: mantisbt-jira@lnx-web-uno\r\nSubject: Mantis->JIRA hiba\r\n\r\n%+v", alert)
+			cmd.Stdin = bytes.NewReader(buf.Bytes())
+			if b, err := cmd.CombinedOutput(); err != nil {
+				logger.Error("sendmail", "args", cmd.Args, "output", string(b), "error", err)
+				return err
+			}
+			logger.Info("sendmail", "args", cmd.Args)
+			return nil
+		}
+	}
 
 	f := func(ctx context.Context, svc *SVC, p []byte, logger *slog.Logger) error {
 		logger.Debug("Dequeue", "data", p)
@@ -111,19 +129,29 @@ func serve(ctx context.Context, dir string) error {
 			logger.Warn("not a JIRA issue", "issueID", t.IssueID, "mantisID", t.MantisID, "task", t)
 			return nil
 		}
+		var err error
 		switch t.Name {
 		case "IssueAddComment":
-			return svc.IssueAddComment(ctx, t.IssueID, t.Comment)
+			err = svc.IssueAddComment(ctx, t.IssueID, t.Comment)
 
 		case "IssueAddAttachment":
-			return svc.IssueAddAttachment(ctx, t.IssueID, t.FileName, t.MIMEType, bytes.NewReader(t.Data))
+			err = svc.IssueAddAttachment(ctx, t.IssueID, t.FileName, t.MIMEType, bytes.NewReader(t.Data))
 
 		case "IssueDoTransition":
-			return svc.IssueDoTransition(ctx, t.IssueID, t.TransitionID)
+			err = svc.IssueDoTransition(ctx, t.IssueID, t.TransitionID)
 
 		default:
 			return fmt.Errorf("%q: %w", t.Name, errUnknownCommand)
 		}
+		if err != nil {
+			logger.Error(t.Name, "task", t, "error", err)
+			if sendAlert != nil {
+				if saErr := sendAlert(err); saErr != nil {
+					logger.Error("sendAlert", "task", t, "sendAlert", saErr)
+				}
+			}
+		}
+		return err
 	}
 
 	seen := make(map[string]struct{})
@@ -146,9 +174,10 @@ func serve(ctx context.Context, dir string) error {
 			logger.Info("Read config", "file", fn)
 			var svc SVC
 			if b, err := os.ReadFile(fn); err != nil {
-				logger.Warn("Read config", "file", fn, "error", err)
-				if !os.IsNotExist(err) {
-					logger.Warn("ReadFile(%q): %w", fn, err)
+				if os.IsNotExist(err) {
+					logger.Info("Read config", "file", fn, "error", err)
+				} else {
+					logger.Warn("Read config", "file", fn, "error", err)
 				}
 				continue
 			} else if err = json.Unmarshal(b, &svc); err != nil {
@@ -169,6 +198,7 @@ func serve(ctx context.Context, dir string) error {
 			if err := Q.Dequeue(ctx, g); err != nil && !errors.Is(err, dirq.ErrEmpty) {
 				if errors.Is(err, errAuthenticate) {
 					logger.Warn("Dequeue", "error", err)
+					sendAlert(err)
 					continue
 				}
 				return err
