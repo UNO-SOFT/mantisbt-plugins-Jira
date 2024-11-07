@@ -933,7 +933,7 @@ var (
 	errAuthenticate = errors.New("authentication error")
 
 	authStrategy = retry.Strategy{
-		Delay: time.Second, MaxDelay: 5 * time.Second,
+		Delay: time.Second, MaxDelay: 5 * time.Second, MaxCount: 3,
 		MaxDuration: time.Minute,
 	}
 	requestStrategy = retry.Strategy{
