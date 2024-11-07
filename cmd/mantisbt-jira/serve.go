@@ -27,8 +27,8 @@ type task struct {
 	IssueID, Comment   string
 	FileName, MIMEType string
 	TransitionID       string
-	MantisID           int
 	Data               []byte
+	MantisID           int
 }
 
 func (svc *SVC) GetMantisID(ctx context.Context, issueID string) (string, error) {

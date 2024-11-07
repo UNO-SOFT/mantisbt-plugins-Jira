@@ -51,12 +51,14 @@ type JIRAIssueType struct {
 
 // https://mholt.github.io/json-to-go/
 type JIRAIssue struct {
-	Fields jiraIssueFields `json:"fields,omitempty"`
 	Expand string          `json:"expand,omitempty"`
 	ID     string          `json:"id,omitempty"`
 	Self   string          `json:"self,omitempty"`
 	Key    string          `json:"key,omitempty"`
+	Fields jiraIssueFields `json:"fields,omitempty"`
 }
+
+//betteralign:skip
 type JiraFields struct {
 	Timetracking struct {
 	} `json:"timetracking,omitempty"`
@@ -72,7 +74,13 @@ type JiraFields struct {
 	Timeoriginalestimate          interface{} `json:"timeoriginalestimate,omitempty"`
 	MantisID                      string      `json:"customfield_15902"` // Mantis,omitemptyID
 	Customfield11100              struct {
-		OngoingCycle struct {
+		ID    string `json:"id,omitempty"`
+		Name  string `json:"name,omitempty"`
+		Links struct {
+			Self string `json:"self,omitempty"`
+		} `json:"_links,omitempty"`
+		CompletedCycles []interface{} `json:"completedCycles,omitempty"`
+		OngoingCycle    struct {
 			GoalDuration struct {
 				Friendly string `json:"friendly,omitempty"`
 				Millis   int    `json:"millis,omitempty"`
@@ -101,12 +109,6 @@ type JiraFields struct {
 			Paused              bool `json:"paused,omitempty"`
 			WithinCalendarHours bool `json:"withinCalendarHours,omitempty"`
 		} `json:"ongoingCycle,omitempty"`
-		ID    string `json:"id,omitempty"`
-		Name  string `json:"name,omitempty"`
-		Links struct {
-			Self string `json:"self,omitempty"`
-		} `json:"_links,omitempty"`
-		CompletedCycles []interface{} `json:"completedCycles,omitempty"`
 	} `json:"customfield_11100,omitempty"`
 	Status struct {
 		Self           string `json:"self,omitempty"`
@@ -400,8 +402,8 @@ type JiraFields struct {
 }
 
 type jiraIssueFields struct {
-	JiraFields
 	CustomFields
+	JiraFields
 }
 
 func (ji JIRAIssue) String() string {
@@ -631,14 +633,14 @@ type JIRAVisibility struct {
 	Value string `json:"value,omitempty"`
 }
 type JIRAComment struct {
+	Visibility   JIRAVisibility `json:"visibility,omitempty"`
 	Self         string         `json:"self,omitempty"`
 	ID           string         `json:"id,omitempty"`
-	Author       JIRAUser       `json:"author,omitempty"`
 	Body         string         `json:"body,omitempty"`
-	UpdateAuthor JIRAUser       `json:"updateAuthor,omitempty"`
 	Created      string         `json:"created,omitempty"`
 	Updated      string         `json:"updated,omitempty"`
-	Visibility   JIRAVisibility `json:"visibility,omitempty"`
+	Author       JIRAUser       `json:"author,omitempty"`
+	UpdateAuthor JIRAUser       `json:"updateAuthor,omitempty"`
 }
 
 type getCommentsResp struct {
@@ -732,13 +734,13 @@ func (svc *Jira) IssueAddAttachment(ctx context.Context, issueID, fileName, mime
 }
 
 type JIRAAttachment struct {
-	Author    JIRAUser `json:"author,omitempty"`
 	Self      string   `json:"self,omitempty"`
 	Filename  string   `json:"filename,omitempty"`
 	Created   string   `json:"created,omitempty"`
 	MimeType  string   `json:"mimeType,omitempty"`
 	Content   string   `json:"content,omitempty"`
 	Thumbnail string   `json:"thumbnail,omitempty"`
+	Author    JIRAUser `json:"author,omitempty"`
 	Size      int      `json:"size,omitempty"`
 }
 
@@ -771,11 +773,11 @@ type getTransitionsResp struct {
 	Transitions []JIRATransition `json:"transitions"`
 }
 type JIRATransition struct {
+	Fields         map[string]any `json:"fields"`
 	ID             string         `json:"id"`
 	Name           string         `json:"name"`
-	OpsbarSequence int            `json:"opsbarSequence"`
 	To             JIRAStatus     `json:"to"`
-	Fields         map[string]any `json:"fields"`
+	OpsbarSequence int            `json:"opsbarSequence"`
 }
 type JIRAStatus struct {
 	Self        string             `json:"self"`
@@ -788,10 +790,10 @@ type JIRAStatus struct {
 }
 type JIRAStatusCategory struct {
 	Self  string `json:"self"`
-	ID    int    `json:"id"`
 	Key   string `json:"key"`
 	Color string `json:"colorName"`
 	Name  string `json:"name"`
+	ID    int    `json:"id"`
 }
 
 type JIRATransitionBody struct {
@@ -856,11 +858,11 @@ type rawToken struct {
 }
 
 type Token struct {
-	till time.Time
-	rawToken
+	till               time.Time
 	AuthURL            string
 	Username, Password string
-	mu                 sync.Mutex
+	rawToken
+	mu sync.Mutex
 }
 
 func (t *Token) UnmarshalJSON(b []byte) error {
