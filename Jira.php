@@ -76,12 +76,22 @@ class JiraPlugin extends MantisPlugin {
 			return;
 		}
 		$t_tran_id = 0;
-		// „Új”  „Folyamatban” státuszváltás esetében a 11 –es numerikus érték.
-		if( $p_new->status == 50 ) { // folyamatban
-			$t_tran_id = 11;
 		// „Folyamatban”  „Átadva” tranzíció  esetében a 21 –es numerikus érték. 
+		if( $p_new=>status >= 90 ) {
+			$t_tran_id = 21;
+			if( $p_old->status > 50 ) {
+				$t_tran_id = 61;
+			}
 		} elseif( $p_new->status >= 80 ) { // átadva
 			$t_tran_id = 21;
+		// „Új”  „Folyamatban” státuszváltás esetében a 11 –es numerikus érték.
+		} elseif( $p_new->status == 50 ) { // folyamatban
+			$t_tran_id = 11;
+		// „On hold”  „In progress”	51
+			if( $p_old->status > 50 ) {
+				$t_tran_id = 51;
+			}
+
 		}
 		if( $t_tran_id != 0 ) {
 			if( strlen($t_bugnote->note) !== 0 ) {
