@@ -176,7 +176,7 @@ $this->log( 'comment added' );
 			return;
 		}
 
-		$t_project_id = bug_get_field( $p_bug_id, 'project_id' );
+		$t_project_id = (int)(bug_get_field( $p_bug_id, 'project_id' ));
 		$this->log( 'project_id=' . $t_project_id);
 
 		foreach( $p_files as $t_file ) {
