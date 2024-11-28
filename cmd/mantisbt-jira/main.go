@@ -254,10 +254,31 @@ func Main() error {
 		},
 	}
 
+	issueDoTransitionToCmd := ff.Command{Name: "transition-to",
+		Usage: "transition <issueID> <targetStatusID>",
+		Exec: func(ctx context.Context, args []string) error {
+			ctx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
+			issueID := args[0]
+			targetStatusID := args[1]
+			if err = svc.init(); err != nil {
+				return err
+			}
+			err := svc.IssueDoTransitionTo(ctx, issueID, targetStatusID)
+			if err != nil {
+				fmt.Println("ERR", err)
+				return err
+			}
+			return nil
+		},
+	}
+
 	issueCmd := ff.Command{Name: "issue",
 		Subcommands: []*ff.Command{
 			&issueGetCmd, &issueExistsCmd,
-			&issueMantisIDCmd, &issueDoTransitionCmd},
+			&issueMantisIDCmd,
+			&issueDoTransitionCmd, &issueDoTransitionToCmd,
+		},
 		Exec: issueExistsCmd.Exec,
 	}
 

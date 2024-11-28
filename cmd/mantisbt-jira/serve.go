@@ -27,6 +27,7 @@ type task struct {
 	IssueID, Comment   string
 	FileName, MIMEType string
 	TransitionID       string
+	TargetStatusID     string
 	Data               []byte
 	MantisID           int
 }
@@ -139,6 +140,9 @@ func serve(ctx context.Context, dir string, alertEmails []string) error {
 
 		case "IssueDoTransition":
 			err = svc.IssueDoTransition(ctx, t.IssueID, t.TransitionID)
+
+		case "IssueDoTransitionTo":
+			err = svc.IssueDoTransitionTo(ctx, t.IssueID, t.TargetStatusID)
 
 		default:
 			return fmt.Errorf("%q: %w", t.Name, errUnknownCommand)

@@ -141,17 +141,12 @@ type JiraFields struct {
 		Description string `json:"description,omitempty"`
 		Name        string `json:"name,omitempty"`
 	} `json:"security,omitempty"`
-	Priority struct {
-		Self    string `json:"self,omitempty"`
-		IconURL string `json:"iconUrl,omitempty"`
-		Name    string `json:"name,omitempty"`
-		ID      string `json:"id,omitempty"`
-	} `json:"priority,omitempty"`
-	Summary          string `json:"summary,omitempty"`
-	Description      string `json:"description,omitempty"`
-	LastViewed       string `json:"lastViewed,omitempty"`
-	Updated          string `json:"updated,omitempty"`
-	Created          string `json:"created,omitempty"`
+	Priority         JIRAPriority `json:"priority,omitempty"`
+	Summary          string       `json:"summary,omitempty"`
+	Description      string       `json:"description,omitempty"`
+	LastViewed       string       `json:"lastViewed,omitempty"`
+	Updated          string       `json:"updated,omitempty"`
+	Created          string       `json:"created,omitempty"`
 	Customfield10009 struct {
 		Links struct {
 			JiraRest string `json:"jiraRest,omitempty"`
@@ -336,27 +331,9 @@ type JiraFields struct {
 		Key    string `json:"key,omitempty"`
 		Self   string `json:"self,omitempty"`
 		Fields struct {
-			Summary string `json:"summary,omitempty"`
-			Status  struct {
-				Self           string `json:"self,omitempty"`
-				Description    string `json:"description,omitempty"`
-				IconURL        string `json:"iconUrl,omitempty"`
-				Name           string `json:"name,omitempty"`
-				ID             string `json:"id,omitempty"`
-				StatusCategory struct {
-					Self      string `json:"self,omitempty"`
-					Key       string `json:"key,omitempty"`
-					ColorName string `json:"colorName,omitempty"`
-					Name      string `json:"name,omitempty"`
-					ID        int    `json:"id,omitempty"`
-				} `json:"statusCategory,omitempty"`
-			} `json:"status,omitempty"`
-			Priority struct {
-				Self    string `json:"self,omitempty"`
-				IconURL string `json:"iconUrl,omitempty"`
-				Name    string `json:"name,omitempty"`
-				ID      string `json:"id,omitempty"`
-			} `json:"priority,omitempty"`
+			Summary   string        `json:"summary,omitempty"`
+			Status    JIRAStatus    `json:"status,omitempty"`
+			Priority  JIRAPriority  `json:"priority,omitempty"`
 			IssueType JIRAIssueType `json:"issuetype,omitempty"`
 		} `json:"fields,omitempty"`
 	} `json:"subtasks,omitempty"`
@@ -399,6 +376,40 @@ type JiraFields struct {
 		Total    int `json:"total,omitempty"`
 	} `json:"aggregateprogress,omitempty"`
 	Workratio int `json:"workratio,omitempty"`
+}
+
+/*
+    "self": "http://localhost:8090/jira/rest/api/2.0/status/10000",
+    "description": "The issue is currently being worked on.",
+    "iconUrl": "http://localhost:8090/jira/images/icons/progress.gif",
+    "name": "In Progress",
+    "id": "10000",
+    "statusCategory": {
+        "self": "http://localhost:8090/jira/rest/api/2.0/statuscategory/1",
+        "id": 1,
+        "key": "in-flight",
+        "colorName": "yellow",
+        "name": "In Progress"
+    }
+}
+*/
+//betteralign:skip
+type JIRAStatus struct {
+	Self           string             `json:"self,omitempty"`
+	Description    string             `json:"description,omitempty"`
+	IconURL        string             `json:"iconUrl,omitempty"`
+	Name           string             `json:"name,omitempty"`
+	ID             string             `json:"id,omitempty"`
+	StatusCategory JIRAStatusCategory `json:"statusCategory,omitempty"`
+}
+
+//betteralign:skip
+type JIRAStatusCategory struct {
+	Self      string `json:"self,omitempty"`
+	Key       string `json:"key,omitempty"`
+	ColorName string `json:"colorName,omitempty"`
+	Name      string `json:"name,omitempty"`
+	ID        int    `json:"id,omitempty"`
 }
 
 type jiraIssueFields struct {
@@ -503,6 +514,25 @@ func (svc *Jira) IssueGet(ctx context.Context, issueID string, fields []string) 
 	}
 	err = json.Unmarshal(resp, &issue)
 	return issue, err
+}
+
+// IssueGetStatus gets the status for the issue.
+func (svc *Jira) IssueGetStatus(ctx context.Context, issueID string) (JIRAStatus, error) {
+	URL := svc.URLFor("issue", issueID, "status")
+	var status JIRAStatus
+	req, err := svc.NewRequest(ctx, "GET", URL, nil)
+	if err != nil {
+		return status, err
+	}
+	resp, err := svc.Do(ctx, req)
+	if err == nil {
+		logger.Debug("IssueGetStatus do", "resp", resp, "error", err)
+	} else {
+		logger.Error("IssueGetStatus do", "resp", resp, "error", err)
+		return status, err
+	}
+	err = json.Unmarshal(resp, &status)
+	return status, err
 }
 
 // IssueTransiton sends a transition to Jira.
@@ -643,6 +673,13 @@ type JIRAComment struct {
 	UpdateAuthor JIRAUser       `json:"updateAuthor,omitempty"`
 }
 
+type JIRAPriority struct {
+	Self    string `json:"self,omitempty"`
+	IconURL string `json:"iconUrl,omitempty"`
+	Name    string `json:"name,omitempty"`
+	ID      string `json:"id,omitempty"`
+}
+
 type getCommentsResp struct {
 	Comments   []JIRAComment `json:"comments,omitempty"`
 	StartAt    int32         `json:"startAt,omitempty"`
@@ -779,22 +816,6 @@ type JIRATransition struct {
 	To             JIRAStatus     `json:"to"`
 	OpsbarSequence int            `json:"opsbarSequence"`
 }
-type JIRAStatus struct {
-	Self        string             `json:"self"`
-	Color       string             `json:"statusColor"`
-	Description string             `json:"description"`
-	IconURL     string             `json:"iconURL"`
-	Name        string             `json:"name"`
-	ID          string             `json:"id"`
-	Category    JIRAStatusCategory `json:"statusCategory"`
-}
-type JIRAStatusCategory struct {
-	Self  string `json:"self"`
-	Key   string `json:"key"`
-	Color string `json:"colorName"`
-	Name  string `json:"name"`
-	ID    int    `json:"id"`
-}
 
 type JIRATransitionBody struct {
 	Transition struct {
@@ -823,6 +844,28 @@ func (svc *Jira) IssueDoTransition(ctx context.Context, issueID, transition stri
 	// var comment JIRAComment
 	// return json.Unmarshal(resp, &comment)
 	return nil
+}
+
+// IssueDoTransitionTo transits the issue's status.
+func (svc *Jira) IssueDoTransitionTo(ctx context.Context, issueID, targetStatus string) error {
+	/*
+		Jira státuszváltás	Jira Transition ID
+		„New”  „In progress”	11
+		„In progress”  „Resolved”	21
+		„In progress”  „On hold”	41
+		„On hold”  „In progress”	51
+		„On hold” „Resolved”	61
+	*/
+	status, err := svc.IssueGetStatus(ctx, issueID)
+	if err != nil {
+		return fmt.Errorf("Get status of %q: %w", issueID, err)
+	}
+	var transition string
+	switch status.ID {
+
+	}
+
+	return svc.IssueDoTransition(ctx, issueID, transition)
 }
 
 // Do the request with the tokens.
