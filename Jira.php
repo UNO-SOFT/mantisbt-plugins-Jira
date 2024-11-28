@@ -167,7 +167,7 @@ $this->log( 'email: ' . var_export( $matches, TRUE ) . ' uid=' . $t_uid );
 $this->log( 'note length: ' .strlen( $t_bugnote->note ) );
 			if( strlen($t_bugnote->note) !== 0 ) {
 				$this->call("comment", array( 
-					"-mantisid=" . $p_bug_id,
+					"--mantisid=" . $p_bug_id,
 					$t_issueid, $t_bugnote->note . "\n\n<<" . user_get_realname( $t_bugnote->reporter_id ) . '>>' ) );
 $this->log( 'comment added' );
 			}
@@ -190,8 +190,8 @@ $this->log( 'comment added' );
 				continue;
 			}
 			$this->call( "attach", array(
-				"-mantisid=" . $p_bug_id,
-				"-filename=" . $t_file['name'], 
+				"--mantisid=" . $p_bug_id,
+				"--filename=" . $t_file['name'], 
 				$t_issueid, 
 				$t_local_disk_file,
 			) );
@@ -203,10 +203,10 @@ $this->log( 'comment added' );
 		$t_args = array( '/usr/local/bin/mantisbt-jira' );
 		foreach( $t_conf as $k => $v ) {
 			if( $v && !strstr( $k, '_' ) ) {
-				$t_args[] = escapeshellarg( '-jira-' . $k . '=' . $v );
+				$t_args[] = escapeshellarg( '--jira-' . $k . '=' . $v );
 			}
 		}
-		$t_args[] = '-queues=/var/local/mantis/jira';
+		$t_args[] = '--queues=/var/local/mantis/jira';
 		
 		$t_output = array();
 		$t_args = implode( ' ', $t_args ) . ' ' . escapeshellarg( $p_subcommand );

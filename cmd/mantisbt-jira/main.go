@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,8 +21,8 @@ import (
 	"github.com/UNO-SOFT/mantisbt-plugins-Jira/cmd/mantisbt-jira/dirq"
 	"github.com/UNO-SOFT/zlog/v2"
 	"github.com/klauspost/compress/gzhttp"
-	"github.com/peterbourgon/ff/v3"
-	"github.com/peterbourgon/ff/v3/ffcli"
+	"github.com/peterbourgon/ff/v4"
+	"github.com/peterbourgon/ff/v4/ffhelp"
 )
 
 var verbose zlog.VerboseVar = 1
@@ -88,10 +87,10 @@ func Main() error {
 	}
 
 	var mantisID int
-	fs := flag.NewFlagSet("attach", flag.ContinueOnError)
-	fs.IntVar(&mantisID, "mantisid", 0, "mantisID")
-	flagAttachFileName := fs.String("filename", "", "override file name")
-	addAttachmentCmd := ffcli.Command{Name: "attach", FlagSet: fs,
+	FS := ff.NewFlagSet("attach")
+	FS.IntVar(&mantisID, 0, "mantisid", 0, "mantisID")
+	flagAttachFileName := FS.StringLong("filename", "", "override file name")
+	addAttachmentCmd := ff.Command{Name: "attach", Flags: FS,
 		Exec: func(ctx context.Context, args []string) error {
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
@@ -143,9 +142,9 @@ func Main() error {
 		},
 	}
 
-	fs = flag.NewFlagSet("attach", flag.ContinueOnError)
-	fs.IntVar(&mantisID, "mantisid", 0, "mantisID")
-	addCommentCmd := ffcli.Command{Name: "comment", FlagSet: fs,
+	FS = ff.NewFlagSet("attach")
+	FS.IntVar(&mantisID, 0, "mantisid", 0, "mantisID")
+	addCommentCmd := ff.Command{Name: "comment", Flags: FS,
 		Exec: func(ctx context.Context, args []string) error {
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
@@ -180,7 +179,7 @@ func Main() error {
 		},
 	}
 
-	issueGetCmd := ffcli.Command{Name: "get",
+	issueGetCmd := ff.Command{Name: "get",
 		Exec: func(ctx context.Context, args []string) error {
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
@@ -198,7 +197,7 @@ func Main() error {
 		},
 	}
 
-	issueExistsCmd := ffcli.Command{Name: "exists",
+	issueExistsCmd := ff.Command{Name: "exists",
 		Exec: func(ctx context.Context, args []string) error {
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
@@ -217,7 +216,7 @@ func Main() error {
 		},
 	}
 
-	issueMantisIDCmd := ffcli.Command{Name: "mantisID",
+	issueMantisIDCmd := ff.Command{Name: "mantisID",
 		Exec: func(ctx context.Context, args []string) error {
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
@@ -236,8 +235,8 @@ func Main() error {
 		},
 	}
 
-	issueDoTransitionCmd := ffcli.Command{Name: "transition",
-		ShortUsage: "transition <issueID> <transitionID>",
+	issueDoTransitionCmd := ff.Command{Name: "transition",
+		Usage: "transition <issueID> <transitionID>",
 		Exec: func(ctx context.Context, args []string) error {
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
@@ -255,16 +254,16 @@ func Main() error {
 		},
 	}
 
-	issueCmd := ffcli.Command{Name: "issue",
-		Subcommands: []*ffcli.Command{
+	issueCmd := ff.Command{Name: "issue",
+		Subcommands: []*ff.Command{
 			&issueGetCmd, &issueExistsCmd,
 			&issueMantisIDCmd, &issueDoTransitionCmd},
 		Exec: issueExistsCmd.Exec,
 	}
 
-	fs = flag.NewFlagSet("serve", flag.ContinueOnError)
-	flagServeEmail := fs.String("alert", "t.gulacsi+jira@unosoft.hu", "comma-separated list of emails to send alerts to")
-	serveCmd := ffcli.Command{Name: "serve", FlagSet: fs,
+	FS = ff.NewFlagSet("serve")
+	flagServeEmail := FS.StringLong("alert", "t.gulacsi+jira@unosoft.hu", "comma-separated list of emails to send alerts to")
+	serveCmd := ff.Command{Name: "serve", Flags: FS,
 		Exec: func(ctx context.Context, args []string) error {
 			if len(args) != 0 {
 				queuesDir = args[0]
@@ -273,24 +272,24 @@ func Main() error {
 		},
 	}
 
-	fs = flag.NewFlagSet("jira", flag.ContinueOnError)
-	fs.StringVar(&svc.BaseURL, "jira-base", svc.BaseURL, "JIRA base URL (with basic auth!)")
-	fs.StringVar(&svc.BasicUser, "basic-user", os.Getenv("JIRA_USER"), "JIRA user")
-	fs.StringVar(&svc.BasicUserPassword, "basic-password", os.Getenv("JIRA_PASSWORD"), "JIRA password")
-	fs.StringVar(&svc.JIRAUser, "jira-user", os.Getenv("SVC_USER"), "service user")
-	fs.StringVar(&svc.JIRAPassword, "jira-password", os.Getenv("SVC_PASSWORD"), "service password")
-	fs.DurationVar(&timeout, "timeout", 1*time.Minute, "timeout")
-	fs.Var(&verbose, "v", "verbose logging")
-	fs.StringVar(&queuesDir, "queues", "", "queues directory")
+	FS = ff.NewFlagSet("jira")
+	FS.StringVar(&svc.BaseURL, 0, "jira-base", svc.BaseURL, "JIRA base URL (with basic auth!)")
+	FS.StringVar(&svc.BasicUser, 0, "basic-user", os.Getenv("JIRA_USER"), "JIRA user")
+	FS.StringVar(&svc.BasicUserPassword, 0, "basic-password", os.Getenv("JIRA_PASSWORD"), "JIRA password")
+	FS.StringVar(&svc.JIRAUser, 0, "jira-user", os.Getenv("SVC_USER"), "service user")
+	FS.StringVar(&svc.JIRAPassword, 0, "jira-password", os.Getenv("SVC_PASSWORD"), "service password")
+	FS.DurationVar(&timeout, 0, "timeout", 1*time.Minute, "timeout")
+	FS.Value('v', "verbose", &verbose, "verbose logging")
+	FS.StringVar(&queuesDir, 0, "queues", "", "queues directory")
 	ucd, err := os.UserCacheDir()
 	if err != nil {
 		return err
 	}
 	// nosemgrep: go.lang.correctness.permissions.file_permission.incorrect-default-permission
 	_ = os.MkdirAll(ucd, 0750)
-	fs.StringVar(&svc.TokensFile, "token", filepath.Join(ucd, "jira-token.json"), "JIRA token file")
-	app := ffcli.Command{Name: "jira", FlagSet: fs, Options: []ff.Option{ff.WithEnvVarNoPrefix()},
-		Subcommands: []*ffcli.Command{
+	FS.StringVar(&svc.TokensFile, 0, "token", filepath.Join(ucd, "jira-token.json"), "JIRA token file")
+	app := ff.Command{Name: "jira", Flags: FS,
+		Subcommands: []*ff.Command{
 			&addAttachmentCmd, &addCommentCmd,
 			&issueCmd,
 			&serveCmd,
@@ -313,7 +312,14 @@ func Main() error {
 			return nil
 		},
 	}
-	if err := app.Parse(os.Args[1:]); err != nil {
+	if err := app.Parse(
+		os.Args[1:],
+		ff.WithEnvVars(),
+	); err != nil {
+		if errors.Is(err, ff.ErrHelp) {
+			ffhelp.Command(&app).WriteTo(os.Stderr)
+			return nil
+		}
 		return err
 	}
 

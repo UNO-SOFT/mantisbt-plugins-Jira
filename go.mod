@@ -9,7 +9,7 @@ require (
 	github.com/google/renameio/v2 v2.0.0
 	github.com/klauspost/compress v1.17.11
 	github.com/oklog/ulid/v2 v2.1.0
-	github.com/peterbourgon/ff/v3 v3.4.0
+	github.com/peterbourgon/ff/v4 v4.0.0-alpha.4
 	github.com/rjeczalik/notify v0.9.3
 	github.com/rogpeppe/retry v0.1.0
 	github.com/tgulacsi/go v0.27.6
