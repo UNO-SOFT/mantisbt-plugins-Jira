@@ -851,21 +851,58 @@ func (svc *Jira) IssueDoTransitionTo(ctx context.Context, issueID, targetStatus 
 	/*
 		Jira státuszváltás	Jira Transition ID
 		„New”  „In progress”	11
-		„In progress”  „Resolved”	21
-		„In progress”  „On hold”	41
 		„On hold”  „In progress”	51
+		„In progress”  „Resolved”	21
 		„On hold” „Resolved”	61
+		„In progress”  „On hold”	41
 	*/
 	status, err := svc.IssueGetStatus(ctx, issueID)
 	if err != nil {
 		return fmt.Errorf("Get status of %q: %w", issueID, err)
 	}
-	var transition string
-	switch status.ID {
-
+	statusID, err := strconv.ParseInt(status.ID, 10, 32)
+	if err != nil {
+		return fmt.Errorf("parse status.ID=%q: %w", status.ID, err)
 	}
 
-	return svc.IssueDoTransition(ctx, issueID, transition)
+	var transitions []string
+	switch statusID {
+	case 5: // "Resolved"
+	case 6: // "Closed"
+	case 1: // "New"
+		transitions = append(transitions, "11")
+		switch targetStatus {
+		case "IN_PROGRESS":
+		case "CLOSED", "RESOLVED":
+			transitions = append(transitions, "21")
+		case "ON_HOLD":
+			transitions = append(transitions, "41")
+		}
+	case 10104: // "On hold"
+		switch targetStatus {
+		case "CLOSED", "RESOLVED":
+			transitions = append(transitions, "61")
+		case "IN_PROGRESS":
+			transitions = append(transitions, "51")
+		case "ON_HOLD":
+		}
+	case 10406: // "In progress"
+		switch targetStatus {
+		case "CLOSED", "RESOLVED":
+			transitions = append(transitions, "21")
+		case "IN_PROGRESS":
+		case "ON_HOLD":
+			transitions = append(transitions, "41")
+		}
+	}
+
+	for _, transition := range transitions {
+		if err := svc.IssueDoTransition(ctx, issueID, transition); err != nil {
+			return fmt.Errorf("%q transition %q: %w",
+				issueID, transition, err)
+		}
+	}
+	return nil
 }
 
 // Do the request with the tokens.

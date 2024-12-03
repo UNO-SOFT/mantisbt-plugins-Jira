@@ -75,7 +75,7 @@ class JiraPlugin extends MantisPlugin {
 		if( $p_old->status == $p_new->status || $p_old->status >= 80 ) {
 			return;
 		}
-		$t_target_status_id = 0;
+		$t_target_status_id = '';
 		$t_tran_id = 0;
 		// „Folyamatban”  „Átadva” tranzíció  esetében a 21 –es numerikus érték. 
 		/*
@@ -85,14 +85,15 @@ class JiraPlugin extends MantisPlugin {
 		kérdés	55
 		átadva	80
 		*/
-		if( $p_new->status <= 10 ) {
-			$t_target_status_id = ;//NEW
+			// $t_target_status_id = 'NEW';  // NEW
+		if( $p_new->status >= 90 ) {
+			$t_target_status_id = 'CLOSED';  // CLOSED
 		} elseif( $p_new->status >= 80 ) {
-			$t_target_status_id = ;//RESOLVED
+			$t_target_status_id = 'RESOLVED';  // RESOLVED
 		} elseif( $p_new->status = 50 ) {
-			$t_target_status_id = ;//INPROGRESS
+			$t_target_status_id = 'IN_PROGRESS';  // INPROGRESS
 		} elseif( $p_new->status = 55 ) {
-			$t_target_status_id = ;//ONHOLD
+			$t_target_status_id = 'ON_HOLD';  // ONHOLD
 		}
 		/*
 		if( $p_new=>status >= 90 ) {
@@ -118,7 +119,7 @@ class JiraPlugin extends MantisPlugin {
 				$p_bug_id,
 				$t_tran_id ) 
 			);
-		} else if ( $t_target_status_id != 0 ) {
+		} elseif ( $t_target_status_id ) {
 			$this->call("issue", array(
 				"transition-to",
 				$p_bug_id,
