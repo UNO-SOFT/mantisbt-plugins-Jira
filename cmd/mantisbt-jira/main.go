@@ -20,9 +20,11 @@ import (
 
 	"github.com/UNO-SOFT/mantisbt-plugins-Jira/cmd/mantisbt-jira/dirq"
 	"github.com/UNO-SOFT/zlog/v2"
+	"github.com/UNO-SOFT/zlog/v2/httplogtransport"
 	"github.com/klauspost/compress/gzhttp"
 	"github.com/peterbourgon/ff/v4"
 	"github.com/peterbourgon/ff/v4/ffhelp"
+	"github.com/tgulacsi/go/version"
 )
 
 var verbose zlog.VerboseVar = 1
@@ -69,20 +71,8 @@ func Main() error {
 	var queuesDir string
 	timeout := time.Minute
 
-	client := *http.DefaultClient
-	if client.Transport == nil {
-		client.Transport = http.DefaultTransport
-	}
-	client.Transport = gzhttp.Transport(client.Transport)
-	clientJar, err := cookiejar.New(nil)
-	if err != nil {
-		return err
-	}
-	client.Jar = clientJar
-	svc := SVC{
-		Jira: Jira{HTTPClient: &client},
-	}
-	if svc.BaseURL = os.Getenv("JIRA_URL"); svc.BaseURL == "" {
+	svc := SVC{BaseURL: os.Getenv("JIRA_URL")}
+	if svc.BaseURL == "" {
 		svc.BaseURL = DefaultJiraURL
 	}
 
@@ -158,7 +148,7 @@ func Main() error {
 				body = buf.String()
 			}
 			if queuesDir != "" {
-				if err = svc.Enqueue(ctx, queuesDir, task{
+				if err := svc.Enqueue(ctx, queuesDir, task{
 					Name:     "IssueAddComment",
 					MantisID: mantisID, IssueID: issueID, Comment: body,
 				}); err != nil {
@@ -167,7 +157,7 @@ func Main() error {
 					return nil
 				}
 			}
-			if err = svc.init(); err != nil {
+			if err := svc.init(); err != nil {
 				return err
 			}
 			if ok, err := svc.checkMantisIssueID(ctx, issueID, mantisID); err != nil {
@@ -184,7 +174,7 @@ func Main() error {
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			issueID := args[0]
-			if err = svc.init(); err != nil {
+			if err := svc.init(); err != nil {
 				return err
 			}
 			issue, err := svc.IssueGet(ctx, issueID, nil)
@@ -202,7 +192,7 @@ func Main() error {
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			issueID := args[0]
-			if err = svc.init(); err != nil {
+			if err := svc.init(); err != nil {
 				return err
 			}
 			issue, err := svc.IssueGet(ctx, issueID, []string{"status"})
@@ -221,7 +211,7 @@ func Main() error {
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			issueID := args[0]
-			if err = svc.init(); err != nil {
+			if err := svc.init(); err != nil {
 				return err
 			}
 			issueMantisID, err := svc.GetMantisID(ctx, issueID)
@@ -242,7 +232,7 @@ func Main() error {
 			defer cancel()
 			issueID := args[0]
 			transitionID := args[1]
-			if err = svc.init(); err != nil {
+			if err := svc.init(); err != nil {
 				return err
 			}
 			err := svc.IssueDoTransition(ctx, issueID, transitionID)
@@ -261,7 +251,7 @@ func Main() error {
 			defer cancel()
 			issueID := args[0]
 			targetStatusID := args[1]
-			if err = svc.init(); err != nil {
+			if err := svc.init(); err != nil {
 				return err
 			}
 			err := svc.IssueDoTransitionTo(ctx, issueID, targetStatusID)
@@ -301,6 +291,7 @@ func Main() error {
 	FS.StringVar(&svc.JIRAPassword, 0, "jira-password", os.Getenv("SVC_PASSWORD"), "service password")
 	FS.DurationVar(&timeout, 0, "timeout", 1*time.Minute, "timeout")
 	FS.Value('v', "verbose", &verbose, "verbose logging")
+	flagVersion := FS.BoolLongDefault("version", false, "print version")
 	FS.StringVar(&queuesDir, 0, "queues", "", "queues directory")
 	ucd, err := os.UserCacheDir()
 	if err != nil {
@@ -337,15 +328,34 @@ func Main() error {
 		os.Args[1:],
 		ff.WithEnvVars(),
 	); err != nil {
+		ffhelp.Command(&app).WriteTo(os.Stderr)
 		if errors.Is(err, ff.ErrHelp) {
-			ffhelp.Command(&app).WriteTo(os.Stderr)
 			return nil
 		}
 		return err
 	}
+	if *flagVersion {
+		fmt.Println(version.Main())
+		return nil
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
+	ctx = zlog.NewSContext(ctx, logger)
+
+	client := *http.DefaultClient
+	if client.Transport == nil {
+		client.Transport = http.DefaultTransport
+	}
+	client.Transport = gzhttp.Transport(client.Transport)
+	client.Transport = httplogtransport.LoggingTransport{Transport: client.Transport}
+	logger.Debug("Main", "logtransport", client.Transport)
+	clientJar, err := cookiejar.New(nil)
+	if err != nil {
+		return err
+	}
+	client.Jar = clientJar
+	svc.Jira = Jira{HTTPClient: &client}
 
 	start := time.Now()
 	err = app.Run(ctx)

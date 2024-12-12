@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/UNO-SOFT/zlog/v2/httplogtransport"
 	"github.com/google/renameio/v2"
 	"github.com/klauspost/compress/gzhttp"
 	"github.com/rogpeppe/retry"
@@ -1023,14 +1024,18 @@ var (
 )
 
 func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Request) ([]byte, bool, error) {
+	logEnabled := logger.Enabled(ctx, slog.LevelDebug)
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 		if httpClient.Transport == nil {
 			httpClient.Transport = http.DefaultTransport
 		}
 		httpClient.Transport = gzhttp.Transport(httpClient.Transport)
+		if logEnabled {
+			httpClient.Transport = httplogtransport.LoggingTransport{Transport: httpClient.Transport}
+		}
+		logger.Debug("logEnabled", "logtransport", httpClient.Transport)
 	}
-	logEnabled := logger.Enabled(ctx, slog.LevelDebug)
 	var reqBuf, respBuf bytes.Buffer
 	t.mu.Lock()
 	defer t.mu.Unlock()
