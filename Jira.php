@@ -113,23 +113,27 @@ class JiraPlugin extends MantisPlugin {
 
 		}
 		*/
+		$t_issueid = this->issueid_get( $p_bug_id );
+		if( !$t_issueid ) {
+			return;
+		}
+
 		if( $t_tran_id != 0 ) {
 			$this->call("issue", array(
 				"transition",
-				$p_bug_id,
+				$t_issueid,
 				$t_tran_id ) 
 			);
 		} elseif ( $t_target_status_id ) {
 			$this->call("issue", array(
 				"transition-to",
-				$p_bug_id,
+				$t_issueid,
 				$t_target_status_id ) 
 			);
 		}
 	}
 
-	function bugnote_add( $p_event_name, $p_bug_id, $p_bugnote_id, $files ) {
-		$p_files = $files;
+	function issueid_get( $p_bug_id ) : string {
 		$this->log( 'bugnote_add(' . $p_event_name . ', ' . $p_bug_id . ' bugnote_id=' . $p_bugnote_id . ' files=' . var_export( $p_files, TRUE ) . ')' );
 		if( $this->issueid_field_id === 0 ) {
 			$this->issueid_field_id = custom_field_id_from_name( 'nyilvszám' );
@@ -141,6 +145,15 @@ class JiraPlugin extends MantisPlugin {
         $t_pattern = '/' . plugin_config_get( 'key_regexp', '^(INCIDENT|CHANGE|REQUEST|PROBLEM)-[0-9]+$' ) . '/';
 		$this->log( 'nyilvszam(' . $this->issueid_field_id . '): ' . $t_issueid . ", pat=$t_pattern match=" . preg_match( $t_pattern, $t_issueid ) );
 		if( !$t_issueid || !preg_match( $t_pattern, $t_issueid ) ) {
+			return "";
+		}
+		return $t_issueid;
+	}
+
+	function bugnote_add( $p_event_name, $p_bug_id, $p_bugnote_id, $files ) {
+		$p_files = $files;
+		$t_issueid = this->issueid_get( $p_bug_id );
+		if( !$t_issueid ) {
 			return;
 		}
 

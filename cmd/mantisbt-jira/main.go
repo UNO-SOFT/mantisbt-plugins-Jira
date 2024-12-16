@@ -5,9 +5,11 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -20,7 +22,7 @@ import (
 
 	"github.com/UNO-SOFT/mantisbt-plugins-Jira/cmd/mantisbt-jira/dirq"
 	"github.com/UNO-SOFT/zlog/v2"
-	"github.com/UNO-SOFT/zlog/v2/httplogtransport"
+	"github.com/UNO-SOFT/zlog/v2/loghttp"
 	"github.com/klauspost/compress/gzhttp"
 	"github.com/peterbourgon/ff/v4"
 	"github.com/peterbourgon/ff/v4/ffhelp"
@@ -225,17 +227,62 @@ func Main() error {
 		},
 	}
 
-	issueDoTransitionCmd := ff.Command{Name: "transition",
-		Usage: "transition <issueID> <transitionID>",
+	transitionsGetCmd := ff.Command{Name: "get",
+		Usage: "get <issueID>",
 		Exec: func(ctx context.Context, args []string) error {
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			issueID := args[0]
-			transitionID := args[1]
 			if err := svc.init(); err != nil {
 				return err
 			}
-			err := svc.IssueDoTransition(ctx, issueID, transitionID)
+			transitions, err := svc.IssueTransitions(ctx, issueID, true)
+			if err != nil {
+				fmt.Println("ERR", err)
+				return err
+			}
+
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			if err := enc.Encode(transitions); err != nil {
+				return err
+			}
+			for _, t := range transitions {
+				for _, f := range t.Fields {
+					if f.Required {
+						fmt.Println("required:", f)
+					}
+				}
+			}
+			return nil
+		},
+	}
+
+	var comment string
+	FS = ff.NewFlagSet("transition-to")
+	FS.StringVar(&comment, 'm', "comment", "", "comment")
+	transitionToCmd := ff.Command{Name: "to", Flags: FS,
+		Usage: "to <issueID> <targetStatusID>",
+		Exec: func(ctx context.Context, args []string) error {
+			ctx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
+			issueID := args[0]
+			targetStatusID := args[1]
+			if queuesDir != "" {
+				if err := svc.Enqueue(ctx, queuesDir, task{
+					Name:    "IssueDoTransitionTo",
+					IssueID: issueID, Comment: comment,
+					TargetStatusID: targetStatusID,
+				}); err != nil {
+					logger.Error("queue", "error", err)
+				} else {
+					return nil
+				}
+			}
+			if err := svc.init(); err != nil {
+				return err
+			}
+			err := svc.IssueDoTransitionTo(ctx, issueID, targetStatusID, comment)
 			if err != nil {
 				fmt.Println("ERR", err)
 				return err
@@ -244,17 +291,31 @@ func Main() error {
 		},
 	}
 
-	issueDoTransitionToCmd := ff.Command{Name: "transition-to",
-		Usage: "transition <issueID> <targetStatusID>",
+	FS = ff.NewFlagSet("transition-to")
+	FS.StringVar(&comment, 'm', "comment", "", "comment")
+	issueDoTransitionCmd := ff.Command{Name: "transition", Flags: FS,
+		Usage:       "transition <issueID> <transitionID>",
+		Subcommands: []*ff.Command{&transitionToCmd, &transitionsGetCmd},
 		Exec: func(ctx context.Context, args []string) error {
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			issueID := args[0]
-			targetStatusID := args[1]
+			transitionID := args[1]
+			if queuesDir != "" {
+				if err := svc.Enqueue(ctx, queuesDir, task{
+					Name:    "IssueDoTransitionTo",
+					IssueID: issueID, Comment: comment,
+					TransitionID: transitionID,
+				}); err != nil {
+					logger.Error("queue", "error", err)
+				} else {
+					return nil
+				}
+			}
 			if err := svc.init(); err != nil {
 				return err
 			}
-			err := svc.IssueDoTransitionTo(ctx, issueID, targetStatusID)
+			err := svc.IssueDoTransition(ctx, issueID, transitionID, comment)
 			if err != nil {
 				fmt.Println("ERR", err)
 				return err
@@ -267,7 +328,7 @@ func Main() error {
 		Subcommands: []*ff.Command{
 			&issueGetCmd, &issueExistsCmd,
 			&issueMantisIDCmd,
-			&issueDoTransitionCmd, &issueDoTransitionToCmd,
+			&issueDoTransitionCmd,
 		},
 		Exec: issueExistsCmd.Exec,
 	}
@@ -347,8 +408,11 @@ func Main() error {
 	if client.Transport == nil {
 		client.Transport = http.DefaultTransport
 	}
-	client.Transport = gzhttp.Transport(client.Transport)
-	client.Transport = httplogtransport.LoggingTransport{Transport: client.Transport}
+	if logger.Enabled(ctx, slog.LevelDebug) {
+		client.Transport = loghttp.Transport(client.Transport)
+	} else {
+		client.Transport = gzhttp.Transport(client.Transport)
+	}
 	logger.Debug("Main", "logtransport", client.Transport)
 	clientJar, err := cookiejar.New(nil)
 	if err != nil {

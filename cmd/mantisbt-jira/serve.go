@@ -139,10 +139,10 @@ func serve(ctx context.Context, dir string, alertEmails []string) error {
 			err = svc.IssueAddAttachment(ctx, t.IssueID, t.FileName, t.MIMEType, bytes.NewReader(t.Data))
 
 		case "IssueDoTransition":
-			err = svc.IssueDoTransition(ctx, t.IssueID, t.TransitionID)
+			err = svc.IssueDoTransition(ctx, t.IssueID, t.TransitionID, t.Comment)
 
 		case "IssueDoTransitionTo":
-			err = svc.IssueDoTransitionTo(ctx, t.IssueID, t.TargetStatusID)
+			err = svc.IssueDoTransitionTo(ctx, t.IssueID, t.TargetStatusID, t.Comment)
 
 		default:
 			return fmt.Errorf("%q: %w", t.Name, errUnknownCommand)

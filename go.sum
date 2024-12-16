@@ -1,5 +1,7 @@
 github.com/UNO-SOFT/zlog v0.8.4-0.20241212183232-16f01fc2830c h1:5Eewk4vWwOzJ5YEpdGYWiv9VYQNgYLd7vH5ojA3ETEo=
 github.com/UNO-SOFT/zlog v0.8.4-0.20241212183232-16f01fc2830c/go.mod h1:evZ4YWd8zvEEjodjD6xTdVUkd8016r/2dx5PrcYIkqo=
+github.com/UNO-SOFT/zlog v0.8.4-0.20241216140005-bdf017e478cf h1:Rv+U1Njm9wm0LgxCdWspJLWnoZM2Zr2BilryeR+CfI4=
+github.com/UNO-SOFT/zlog v0.8.4-0.20241216140005-bdf017e478cf/go.mod h1:evZ4YWd8zvEEjodjD6xTdVUkd8016r/2dx5PrcYIkqo=
 github.com/dgryski/go-linebreak v0.0.0-20180812204043-d8f37254e7d3 h1:/RVgXZkKAnmlRC/625cvago9x6ROe7fNj7cCdGc4ICw=
 github.com/dgryski/go-linebreak v0.0.0-20180812204043-d8f37254e7d3/go.mod h1:FDHdQKtI1NtvxIYsG/y+ymRaIQIsp+LRSTGl7eBKQEU=
 github.com/frankban/quicktest v1.14.0 h1:+cqqvzZV87b4adx/5ayVOaYZ2CrvM4ejQvUdBzPPUss=

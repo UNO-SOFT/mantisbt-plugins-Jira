@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/UNO-SOFT/zlog/v2/httplogtransport"
+	"github.com/UNO-SOFT/zlog/v2/loghttp"
 	"github.com/google/renameio/v2"
 	"github.com/klauspost/compress/gzhttp"
 	"github.com/rogpeppe/retry"
@@ -111,24 +111,11 @@ type JiraFields struct {
 			WithinCalendarHours bool `json:"withinCalendarHours,omitempty"`
 		} `json:"ongoingCycle,omitempty"`
 	} `json:"customfield_11100,omitempty"`
-	Status struct {
-		Self           string `json:"self,omitempty"`
-		Description    string `json:"description,omitempty"`
-		IconURL        string `json:"iconUrl,omitempty"`
-		Name           string `json:"name,omitempty"`
-		ID             string `json:"id,omitempty"`
-		StatusCategory struct {
-			Self      string `json:"self,omitempty"`
-			Key       string `json:"key,omitempty"`
-			ColorName string `json:"colorName,omitempty"`
-			Name      string `json:"name,omitempty"`
-			ID        int    `json:"id,omitempty"`
-		} `json:"statusCategory,omitempty"`
-	} `json:"status,omitempty"`
-	Customfield14326 JIRAUser `json:"customfield_14326,omitempty"`
-	Assignee         JIRAUser `json:"assignee,omitempty"`
-	Reporter         JIRAUser `json:"reporter,omitempty"`
-	Creator          JIRAUser `json:"creator,omitempty"`
+	Status           JIRAStatus `json:"status,omitempty"`
+	Customfield14326 JIRAUser   `json:"customfield_14326,omitempty"`
+	Assignee         JIRAUser   `json:"assignee,omitempty"`
+	Reporter         JIRAUser   `json:"reporter,omitempty"`
+	Creator          JIRAUser   `json:"creator,omitempty"`
 	Project          struct {
 		Self           string `json:"self,omitempty"`
 		ID             string `json:"id,omitempty"`
@@ -377,6 +364,21 @@ type JiraFields struct {
 		Total    int `json:"total,omitempty"`
 	} `json:"aggregateprogress,omitempty"`
 	Workratio int `json:"workratio,omitempty"`
+}
+
+type JIRAIssueStatus struct {
+	Self           string `json:"self,omitempty"`
+	Description    string `json:"description,omitempty"`
+	IconURL        string `json:"iconUrl,omitempty"`
+	Name           string `json:"name,omitempty"`
+	ID             string `json:"id,omitempty"`
+	StatusCategory struct {
+		Self      string `json:"self,omitempty"`
+		Key       string `json:"key,omitempty"`
+		ColorName string `json:"colorName,omitempty"`
+		Name      string `json:"name,omitempty"`
+		ID        int    `json:"id,omitempty"`
+	} `json:"statusCategory,omitempty"`
 }
 
 /*
@@ -806,28 +808,103 @@ func (svc *Jira) IssueTransitions(ctx context.Context, issueID string, fields bo
 	return transitions.Transitions, err
 }
 
-type getTransitionsResp struct {
-	Expand      string           `json:"expand"`
-	Transitions []JIRATransition `json:"transitions"`
-}
-type JIRATransition struct {
-	Fields         map[string]any `json:"fields"`
-	ID             string         `json:"id"`
-	Name           string         `json:"name"`
-	To             JIRAStatus     `json:"to"`
-	OpsbarSequence int            `json:"opsbarSequence"`
-}
+type (
+	getTransitionsResp struct {
+		Expand      string           `json:"expand"`
+		Transitions []JIRATransition `json:"transitions"`
+	}
 
-type JIRATransitionBody struct {
-	Transition struct {
-		ID string `json:"id"`
-	} `json:"transition"`
-}
+	JIRATransition struct {
+		Fields         map[string]JIRAField `json:"fields"`
+		ID             string               `json:"id"`
+		Name           string               `json:"name"`
+		To             JIRAStatus           `json:"to"`
+		OpsbarSequence int                  `json:"opsbarSequence"`
+	}
+
+	/*
+		"assignee": {
+		        "autoCompleteUrl": "https://dc1jralappvt101.hu.emea.aegon.com/rest/api/latest/user/assignable/search?issueKey=INCIDENT-66591\u0026username=",
+		        "fieldId": "assignee",
+		        "name": "Assignee",
+		        "operations": [
+		          "set"
+		        ],
+		        "required": false,
+		        "schema": {
+		          "system": "assignee",
+		          "type": "user"
+		        }
+		      },
+		      "customfield_14324": {
+		        "allowedValues": [
+		          {
+		            "disabled": false,
+		            "id": "17162",
+		            "self": "https://dc1jralappvt101.hu.emea.aegon.com/rest/api/2/customFieldOption/17162",
+		            "value": "AAT (Advanced Analytics Team)"
+		          },
+	*/
+	JIRAField struct {
+		AllowedValues   []JIRAAllowedValues
+		AutoCompleteURL string     `json:"autoCompleteUrl"`
+		ID              string     `json:"fieldId"`
+		Name            string     `json:"name"`
+		Operations      []string   `json:"operations"`
+		Required        bool       `json:"required"`
+		Schema          JIRASchema `json:"schema"`
+	}
+
+	JIRASchema struct {
+		System   string `json:"system"`
+		Type     string `json:"type"`
+		Items    string `json:"items"`
+		Custom   string `json:"string"`
+		CustomID int    `json:"customId"`
+	}
+
+	JIRAAllowedValues struct {
+		ID       string `json:"id"`
+		Self     string `json:"self"`
+		Value    string `json:"value"`
+		Disabled bool   `json:"disabled"`
+	}
+	/*
+			"update": {
+		        "comment": [
+		            {
+		                "add": {
+		                    "body": "Bug has been fixed."
+		                }
+		            }
+		        ]
+		    },
+	*/
+	JIRACommentOpAdd struct {
+		Body string `json:"body"`
+	}
+	JIRACommentOp struct {
+		Add JIRACommentOpAdd `json:"add"`
+	}
+	JIRATransitionBody struct {
+		Update struct {
+			Comment []JIRACommentOp `json:"comment,omitempty"`
+		} `json:"update,omitempty"`
+		Transition struct {
+			ID string `json:"id"`
+		} `json:"transition"`
+	}
+)
 
 // IssueDoTransition transits the issue's status.
-func (svc *Jira) IssueDoTransition(ctx context.Context, issueID, transition string) error {
+func (svc *Jira) IssueDoTransition(ctx context.Context, issueID, transition, comment string) error {
 	URL := svc.URLFor("issue", issueID, "transitions")
 	var body JIRATransitionBody
+	if comment != "" {
+		body.Update.Comment = append(body.Update.Comment,
+			JIRACommentOp{Add: JIRACommentOpAdd{Body: comment}},
+		)
+	}
 	body.Transition.ID = transition
 	b, err := json.Marshal(body)
 	if err != nil {
@@ -847,8 +924,55 @@ func (svc *Jira) IssueDoTransition(ctx context.Context, issueID, transition stri
 	return nil
 }
 
+/*
+   "expand": "transitions",
+    "transitions": [
+        {
+            "id": "2",
+            "name": "Close Issue",
+            "opsbarSequence": 10,
+            "to": {
+                "self": "http://localhost:8090/jira/rest/api/2.0/status/10000",
+                "description": "The issue is currently being worked on.",
+                "iconUrl": "http://localhost:8090/jira/images/icons/progress.gif",
+                "name": "In Progress",
+                "id": "10000",
+                "statusCategory": {
+                    "self": "http://localhost:8090/jira/rest/api/2.0/statuscategory/1",
+                    "id": 1,
+                    "key": "in-flight",
+                    "colorName": "yellow",
+                    "name": "In Progress"
+                }
+            },
+            "fields": {
+                "summary": {
+                    "required": false,
+                    "schema": {
+                        "type": "array",
+                        "items": "option",
+                        "custom": "com.atlassian.jira.plugin.system.customfieldtypes:multiselect",
+                        "customId": 10001
+                    },
+                    "name": "My Multi Select",
+                    "fieldId": "customfield_10000",
+                    "hasDefaultValue": false,
+                    "operations": [
+                        "set",
+                        "add"
+                    ],
+                    "allowedValues": [
+                        "red",
+                        "blue",
+                        "default value"
+                    ]
+                }
+            }
+        },
+*/
+
 // IssueDoTransitionTo transits the issue's status.
-func (svc *Jira) IssueDoTransitionTo(ctx context.Context, issueID, targetStatus string) error {
+func (svc *Jira) IssueDoTransitionTo(ctx context.Context, issueID, targetStatus, comment string) error {
 	/*
 		Jira státuszváltás	Jira Transition ID
 		„New”  „In progress”	11
@@ -857,52 +981,35 @@ func (svc *Jira) IssueDoTransitionTo(ctx context.Context, issueID, targetStatus 
 		„On hold” „Resolved”	61
 		„In progress”  „On hold”	41
 	*/
-	status, err := svc.IssueGetStatus(ctx, issueID)
+	transitions, err := svc.IssueTransitions(ctx, issueID, false)
 	if err != nil {
 		return fmt.Errorf("Get status of %q: %w", issueID, err)
 	}
-	statusID, err := strconv.ParseInt(status.ID, 10, 32)
-	if err != nil {
-		return fmt.Errorf("parse status.ID=%q: %w", status.ID, err)
+	possible := make(map[string]JIRATransition, len(transitions))
+	for _, t := range transitions {
+		possible[t.ID] = t
 	}
 
-	var transitions []string
-	switch statusID {
-	case 5: // "Resolved"
-	case 6: // "Closed"
-	case 1: // "New"
-		transitions = append(transitions, "11")
-		switch targetStatus {
-		case "IN_PROGRESS":
-		case "CLOSED", "RESOLVED":
-			transitions = append(transitions, "21")
-		case "ON_HOLD":
-			transitions = append(transitions, "41")
-		}
-	case 10104: // "On hold"
-		switch targetStatus {
-		case "CLOSED", "RESOLVED":
-			transitions = append(transitions, "61")
-		case "IN_PROGRESS":
-			transitions = append(transitions, "51")
-		case "ON_HOLD":
-		}
-	case 10406: // "In progress"
-		switch targetStatus {
-		case "CLOSED", "RESOLVED":
-			transitions = append(transitions, "21")
-		case "IN_PROGRESS":
-		case "ON_HOLD":
-			transitions = append(transitions, "41")
+	wanted := make([]string, 0, 2)
+	switch targetStatus {
+	case "IN_PROGRESS":
+		wanted = append(wanted, "51")
+	case "CLOSED", "RESOLVED":
+		wanted = append(wanted, "21", "61")
+	case "ON_HOLD":
+		wanted = append(wanted, "41")
+	}
+	for _, w := range wanted {
+		if t, ok := possible[w]; ok {
+			err := svc.IssueDoTransition(ctx, issueID, t.ID, comment)
+			if err != nil {
+				err = fmt.Errorf("%q transition %q: %w",
+					issueID, t.ID, err)
+			}
+			return err
 		}
 	}
-
-	for _, transition := range transitions {
-		if err := svc.IssueDoTransition(ctx, issueID, transition); err != nil {
-			return fmt.Errorf("%q transition %q: %w",
-				issueID, transition, err)
-		}
-	}
+	logger.Warn("no wanted found possible", "target", targetStatus, "wanted", wanted, "possible", possible)
 	return nil
 }
 
@@ -1030,9 +1137,10 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		if httpClient.Transport == nil {
 			httpClient.Transport = http.DefaultTransport
 		}
-		httpClient.Transport = gzhttp.Transport(httpClient.Transport)
 		if logEnabled {
-			httpClient.Transport = httplogtransport.LoggingTransport{Transport: httpClient.Transport}
+			httpClient.Transport = loghttp.Transport(httpClient.Transport)
+		} else {
+			httpClient.Transport = gzhttp.Transport(httpClient.Transport)
 		}
 		logger.Debug("logEnabled", "logtransport", httpClient.Transport)
 	}
@@ -1099,14 +1207,14 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 			return nil
 		}
 		if err := try(); err != nil {
-			for iter := authStrategy.Start(); iter.Next(ctx.Done()); {
+			for iter := authStrategy.Start(); ; {
 				if err = try(); err == nil {
 					break
 				}
 				logger.Error("try", "count", iter.Count(), "error", err)
-			}
-			if err != nil {
-				return nil, changed, err
+				if !iter.Next(ctx.Done()) {
+					return nil, changed, err
+				}
 			}
 		}
 
@@ -1135,17 +1243,19 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	*/
 	req.Header.Set("Cookie", "JSESSIONID="+t.JSessionID)
 	req.Header.Set("Authorization", "Bearer "+t.AccessToken)
-	sr, err := iohlp.MakeSectionReader(req.Body, 1<<20)
-	if err != nil {
-		return nil, changed, err
+	if req.Body != nil {
+		sr, err := iohlp.MakeSectionReader(req.Body, 1<<20)
+		if err != nil {
+			return nil, changed, err
+		}
+		req.GetBody = func() (io.ReadCloser, error) {
+			return struct {
+				io.Reader
+				io.Closer
+			}{io.NewSectionReader(sr, 0, sr.Size()), io.NopCloser(nil)}, nil
+		}
+		req.Body, _ = req.GetBody()
 	}
-	req.GetBody = func() (io.ReadCloser, error) {
-		return struct {
-			io.Reader
-			io.Closer
-		}{io.NewSectionReader(sr, 0, sr.Size()), io.NopCloser(nil)}, nil
-	}
-	req.Body, _ = req.GetBody()
 	first := true
 	try := func() error {
 		if first && logEnabled {
@@ -1206,17 +1316,20 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		}
 		return nil
 	}
-	if err = try(); err != nil {
-		for iter := requestStrategy.Start(); iter.Next(ctx.Done()); {
+	if err := try(); err != nil {
+		for iter := requestStrategy.Start(); ; {
 			var jerr *JIRAError
 			if err = try(); err == nil || errors.As(err, &jerr) {
 				break
 			}
 			logger.Error("try", "count", iter.Count(), "error", err)
+			if !iter.Next(ctx.Done()) {
+				break
+			}
 		}
 	}
 
-	return respBuf.Bytes(), changed, err
+	return respBuf.Bytes(), changed, nil
 }
 
 func redactedURL(u *url.URL) string {
