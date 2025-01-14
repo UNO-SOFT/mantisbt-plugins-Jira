@@ -56,7 +56,7 @@ func (svc *SVC) checkMantisIssueID(ctx context.Context, issueID string, mantisID
 	// 	return;
 	// }
 	issueMantisID, err := svc.GetMantisID(ctx, issueID)
-	if err != nil {
+	if err != nil || issueMantisID == "" {
 		logger.Error("IssueGet", "issueID", issueID, "error", err)
 		return false, err
 	}

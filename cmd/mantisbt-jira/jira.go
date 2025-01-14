@@ -503,20 +503,25 @@ func (svc *Jira) IssueGet(ctx context.Context, issueID string, fields []string) 
 		q["fields"] = fields
 		URL.RawQuery = q.Encode()
 	}
-	var issue JIRAIssue
+	var issue struct {
+		JIRAIssue
+		JIRAError
+	}
 	req, err := svc.NewRequest(ctx, "GET", URL, nil)
 	if err != nil {
-		return issue, err
+		return issue.JIRAIssue, err
 	}
 	resp, err := svc.Do(ctx, req)
 	if err == nil {
 		logger.Debug("IssueGet do", "resp", resp, "error", err)
 	} else {
 		logger.Error("IssueGet do", "resp", resp, "error", err)
-		return issue, err
+		return issue.JIRAIssue, err
 	}
-	err = json.Unmarshal(resp, &issue)
-	return issue, err
+	if err = json.Unmarshal(resp, &issue); err == nil && len(issue.JIRAError.Messages) != 0 {
+		err = &issue.JIRAError
+	}
+	return issue.JIRAIssue, err
 }
 
 // IssueGetStatus gets the status for the issue.
@@ -1108,7 +1113,9 @@ func (je *JIRAError) Error() string {
 		buf.WriteString(je.Fault.Code + ": " + je.Fault.Detail.Message)
 	}
 	for _, m := range je.Messages {
-		buf.WriteString("; ")
+		if buf.Len() != 0 {
+			buf.WriteString("; ")
+		}
 		buf.WriteString(m)
 	}
 	return buf.String()

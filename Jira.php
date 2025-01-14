@@ -72,6 +72,7 @@ class JiraPlugin extends MantisPlugin {
 	}
 
 	function bug_update( $p_event, $p_old, &$p_new ) {
+		$this->log('bug_update(' . $p_old->id . ' status=' . $p_old->status . '=>' . $p_new->status . ')' );
 		if( $p_old->status == $p_new->status || $p_old->status >= 80 ) {
 			return;
 		}
@@ -113,7 +114,8 @@ class JiraPlugin extends MantisPlugin {
 
 		}
 		*/
-		$t_issueid = this->issueid_get( $p_bug_id );
+		$t_issueid = $this->issueid_get( $p_old->id );
+		$this->log( 'issue(' . $p_old->id. ' issueid=' . $t_issueid. ' tran_id=' . $t_tran_id . ' target_status_id=' . $t_target_status_id );
 		if( !$t_issueid ) {
 			return;
 		}
@@ -152,7 +154,7 @@ class JiraPlugin extends MantisPlugin {
 
 	function bugnote_add( $p_event_name, $p_bug_id, $p_bugnote_id, $files ) {
 		$p_files = $files;
-		$t_issueid = this->issueid_get( $p_bug_id );
+		$t_issueid = $this->issueid_get( $p_bug_id );
 		if( !$t_issueid ) {
 			return;
 		}

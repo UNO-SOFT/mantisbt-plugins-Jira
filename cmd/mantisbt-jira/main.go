@@ -23,7 +23,6 @@ import (
 	"github.com/UNO-SOFT/mantisbt-plugins-Jira/cmd/mantisbt-jira/dirq"
 	"github.com/UNO-SOFT/zlog/v2"
 	"github.com/UNO-SOFT/zlog/v2/loghttp"
-	"github.com/klauspost/compress/gzhttp"
 	"github.com/peterbourgon/ff/v4"
 	"github.com/peterbourgon/ff/v4/ffhelp"
 	"github.com/tgulacsi/go/version"
@@ -45,7 +44,7 @@ func main() {
 		var jerr *JIRAError
 		if errors.As(err, &jerr) {
 			//logger.Info("as jiraerr", "error", jerr, "code", jerr.Code)
-			if s, _, ok := strings.Cut(jerr.Code, " "); ok {
+			if s, _, ok := strings.Cut(jerr.Code, " "); ok && s != "" {
 				//logger.Info("cut", "s", s)
 				if i, err := strconv.Atoi(strings.TrimSpace(s)); err == nil {
 					if 401 <= i && i < 500 {
@@ -410,8 +409,6 @@ func Main() error {
 	}
 	if logger.Enabled(ctx, slog.LevelDebug) {
 		client.Transport = loghttp.Transport(client.Transport)
-	} else {
-		client.Transport = gzhttp.Transport(client.Transport)
 	}
 	logger.Debug("Main", "logtransport", client.Transport)
 	clientJar, err := cookiejar.New(nil)
