@@ -987,6 +987,7 @@ func (svc *Jira) IssueDoTransitionTo(ctx context.Context, issueID, targetStatus,
 		„In progress”  „On hold”	41
 	*/
 	transitions, err := svc.IssueTransitions(ctx, issueID, false)
+	logger.Warn("IssueTransitions", "issueID", issueID, "error", err)
 	if err != nil {
 		return fmt.Errorf("Get status of %q: %w", issueID, err)
 	}
@@ -1151,91 +1152,12 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		}
 		logger.Debug("logEnabled", "logtransport", httpClient.Transport)
 	}
-	var reqBuf, respBuf bytes.Buffer
+	var respBuf bytes.Buffer
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	logger.Debug("IsValid", "token", t, "valid", t.IsValid())
-	var changed bool
-	if !t.IsValid() {
-		if t.Username == "" || t.Password == "" || t.AuthURL == "" {
-			return nil, changed, fmt.Errorf("empty JIRA username/password/AuthURL")
-		}
-		/*
-		   curl --location --request POST 'https://partnerapi-uat.aegon.hu/partner/v1/ticket/update/auth?grant_type=password' \
-		   --header 'Content-Type: application/json' \
-		   --header 'Authorization: Basic ...' \
-		   --data-raw '{ "username": "svc_unosoft", "password": "5h9RP97@qK6l"}'
-		*/
-
-		if err := json.NewEncoder(&reqBuf).Encode(userPass{
-			Username: t.Username, Password: t.Password,
-		}); err != nil {
-			return nil, changed, err
-		}
-		try := func() error {
-			req, err := http.NewRequestWithContext(ctx, "POST", t.AuthURL+"?grant_type=password", bytes.NewReader(reqBuf.Bytes()))
-			if err != nil {
-				return err
-			}
-			req.GetBody = func() (io.ReadCloser, error) {
-				return struct {
-					io.Reader
-					io.Closer
-				}{bytes.NewReader(reqBuf.Bytes()), io.NopCloser(nil)}, nil
-			}
-			if logEnabled {
-				logger.Debug("authenticate", "url", t.AuthURL, "body", reqBuf.String())
-			}
-			req.Header.Set("Content-Type", "application/json")
-			start := time.Now()
-			resp, err := httpClient.Do(req.WithContext(ctx))
-			if err != nil {
-				logger.Error("authenticate", "dur", time.Since(start).String(), "url", t.AuthURL, "error", err)
-				return fmt.Errorf("%w: %w", errAuthenticate, err)
-			}
-			if resp == nil || resp.Body == nil {
-				return fmt.Errorf("empty response")
-			}
-			respBuf.Reset()
-			_, err = io.Copy(&respBuf, resp.Body)
-			resp.Body.Close()
-			if logEnabled {
-				logger.Debug("authenticate", "response", respBuf.String())
-			}
-			if err != nil {
-				return fmt.Errorf("%w: %w", errAuthenticate, err)
-			} else if respBuf.Len() == 0 {
-				return fmt.Errorf("%s: empty response", errAuthenticate)
-			} else if err = json.Unmarshal(respBuf.Bytes(), &t); err != nil {
-				return fmt.Errorf("%w: decode %q: %w", errAuthenticate, respBuf.String(), err)
-			} else if !t.IsValid() {
-				return fmt.Errorf("%w: got invalid token: %+v", errAuthenticate, t)
-			}
-			return nil
-		}
-		if err := try(); err != nil {
-			for iter := authStrategy.Start(); ; {
-				if err = try(); err == nil {
-					break
-				}
-				logger.Error("try", "count", iter.Count(), "error", err)
-				if !iter.Next(ctx.Done()) {
-					return nil, changed, err
-				}
-			}
-		}
-
-		changed = true
-		/*
-		   answer:
-		   {
-		       "JSESSIONID": "1973D50D4C576BFBAA889B8726A2FF77",
-		       "issued_at": "1658754363080",
-		       "access_token": "iugVuMjlGng4Lwgdj3LbcE3ehGIB",
-		       "expires_in": "7199",
-		       "refresh_count": "0"
-		   }
-		*/
+	changed, err := t.ensure(ctx, httpClient)
+	if err != nil {
+		return nil, false, err
 	}
 	if req == nil {
 		return nil, changed, nil
@@ -1267,7 +1189,7 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	try := func() error {
 		if first && logEnabled {
 			b, err := httputil.DumpRequestOut(req, true)
-			logger.Debug("Do", "request", string(b), "dumpErr", err)
+			logger.Debug("Do", "request", string(b), "methd", req.Method, "dumpErr", err)
 			if err != nil {
 				return err
 			}
@@ -1337,6 +1259,97 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	}
 
 	return respBuf.Bytes(), changed, nil
+}
+
+func (t *Token) ensure(ctx context.Context, httpClient *http.Client) (bool, error) {
+	var reqBuf, respBuf bytes.Buffer
+	logEnabled := logger.Enabled(ctx, slog.LevelDebug)
+	if logEnabled {
+		logger.Debug("IsValid", "token", t, "valid", t.IsValid())
+	}
+	var changed bool
+	if !t.IsValid() {
+		if t.Username == "" || t.Password == "" || t.AuthURL == "" {
+			return changed, fmt.Errorf("empty JIRA username/password/AuthURL")
+		}
+		/*
+		   curl --location --request POST 'https://partnerapi-uat.aegon.hu/partner/v1/ticket/update/auth?grant_type=password' \
+		   --header 'Content-Type: application/json' \
+		   --header 'Authorization: Basic ...' \
+		   --data-raw '{ "username": "svc_unosoft", "password": "5h9RP97@qK6l"}'
+		*/
+
+		if err := json.NewEncoder(&reqBuf).Encode(userPass{
+			Username: t.Username, Password: t.Password,
+		}); err != nil {
+			return changed, err
+		}
+		try := func() error {
+			req, err := http.NewRequestWithContext(ctx, "POST", t.AuthURL+"?grant_type=password", bytes.NewReader(reqBuf.Bytes()))
+			if err != nil {
+				return err
+			}
+			req.GetBody = func() (io.ReadCloser, error) {
+				return struct {
+					io.Reader
+					io.Closer
+				}{bytes.NewReader(reqBuf.Bytes()), io.NopCloser(nil)}, nil
+			}
+			if logEnabled {
+				logger.Debug("authenticate", "url", t.AuthURL, "body", reqBuf.String())
+			}
+			req.Header.Set("Content-Type", "application/json")
+			start := time.Now()
+			resp, err := httpClient.Do(req.WithContext(ctx))
+			if err != nil {
+				logger.Error("authenticate", "dur", time.Since(start).String(), "url", t.AuthURL, "error", err)
+				return fmt.Errorf("%w: %w", errAuthenticate, err)
+			}
+			if resp == nil || resp.Body == nil {
+				return fmt.Errorf("empty response")
+			}
+			respBuf.Reset()
+			_, err = io.Copy(&respBuf, resp.Body)
+			resp.Body.Close()
+			if logEnabled {
+				logger.Debug("authenticate", "response", respBuf.String())
+			}
+			if err != nil {
+				return fmt.Errorf("%w: %w", errAuthenticate, err)
+			} else if respBuf.Len() == 0 {
+				return fmt.Errorf("%s: empty response", errAuthenticate)
+			} else if err = json.Unmarshal(respBuf.Bytes(), &t); err != nil {
+				return fmt.Errorf("%w: decode %q: %w", errAuthenticate, respBuf.String(), err)
+			} else if !t.IsValid() {
+				return fmt.Errorf("%w: got invalid token: %+v", errAuthenticate, t)
+			}
+			return nil
+		}
+		if err := try(); err != nil {
+			for iter := authStrategy.Start(); ; {
+				if err = try(); err == nil {
+					break
+				}
+				logger.Error("try", "count", iter.Count(), "error", err)
+				if !iter.Next(ctx.Done()) {
+					return changed, err
+				}
+			}
+		}
+
+		changed = true
+		/*
+		   answer:
+		   {
+		       "JSESSIONID": "1973D50D4C576BFBAA889B8726A2FF77",
+		       "issued_at": "1658754363080",
+		       "access_token": "iugVuMjlGng4Lwgdj3LbcE3ehGIB",
+		       "expires_in": "7199",
+		       "refresh_count": "0"
+		   }
+		*/
+	}
+	return changed, nil
 }
 
 func redactedURL(u *url.URL) string {

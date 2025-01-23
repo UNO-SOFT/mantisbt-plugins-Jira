@@ -128,7 +128,7 @@ class JiraPlugin extends MantisPlugin {
 			);
 		} elseif ( $t_target_status_id ) {
 			$this->call("issue", array(
-				"transition-to",
+				"transition", "to",
 				$t_issueid,
 				$t_target_status_id ) 
 			);

@@ -258,7 +258,7 @@ func Main() error {
 	}
 
 	var comment string
-	FS = ff.NewFlagSet("transition-to")
+	FS = ff.NewFlagSet("transition to")
 	FS.StringVar(&comment, 'm', "comment", "", "comment")
 	transitionToCmd := ff.Command{Name: "to", Flags: FS,
 		Usage: "to <issueID> <targetStatusID>",
@@ -290,7 +290,7 @@ func Main() error {
 		},
 	}
 
-	FS = ff.NewFlagSet("transition-to")
+	FS = ff.NewFlagSet("transition")
 	FS.StringVar(&comment, 'm', "comment", "", "comment")
 	issueDoTransitionCmd := ff.Command{Name: "transition", Flags: FS,
 		Usage:       "transition <issueID> <transitionID>",
@@ -302,7 +302,7 @@ func Main() error {
 			transitionID := args[1]
 			if queuesDir != "" {
 				if err := svc.Enqueue(ctx, queuesDir, task{
-					Name:    "IssueDoTransitionTo",
+					Name:    "IssueDoTransition",
 					IssueID: issueID, Comment: comment,
 					TransitionID: transitionID,
 				}); err != nil {
