@@ -148,7 +148,7 @@ func serve(ctx context.Context, dir string, alertEmails []string) error {
 			return fmt.Errorf("%q: %w", t.Name, errUnknownCommand)
 		}
 		if err != nil {
-			logger.Error(t.Name, "task", t, "error", err)
+			logger.Error("DO", "name", t.Name, "task", t, "error", err)
 			if sendAlert != nil {
 				if saErr := sendAlert(err); saErr != nil {
 					logger.Error("sendAlert", "task", t, "sendAlert", saErr)

@@ -1,4 +1,4 @@
-// Copyright 2022, 2023 Tamás Gulácsi. All rights reserved.
+// Copyright 2022, 2025 Tamás Gulácsi. All rights reserved.
 
 package main
 
@@ -12,7 +12,6 @@ import (
 	"log/slog"
 	"mime/multipart"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"os"
 	"reflect"
@@ -25,7 +24,6 @@ import (
 	"github.com/google/renameio/v2"
 	"github.com/klauspost/compress/gzhttp"
 	"github.com/rogpeppe/retry"
-	"github.com/tgulacsi/go/iohlp"
 )
 
 // https://docs.atlassian.com/software/jira/docs/api/REST/9.12.2/#api/2/issue-addComment
@@ -1172,31 +1170,21 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	*/
 	req.Header.Set("Cookie", "JSESSIONID="+t.JSessionID)
 	req.Header.Set("Authorization", "Bearer "+t.AccessToken)
-	if req.Body != nil {
-		sr, err := iohlp.MakeSectionReader(req.Body, 1<<20)
-		if err != nil {
-			return nil, changed, err
-		}
-		req.GetBody = func() (io.ReadCloser, error) {
-			return struct {
+	var reqBody *bytes.Buffer
+	try := func() error {
+		start := time.Now()
+		if reqBody == nil {
+			reqBody = new(bytes.Buffer)
+			req.Body = struct {
 				io.Reader
 				io.Closer
-			}{io.NewSectionReader(sr, 0, sr.Size()), io.NopCloser(nil)}, nil
+			}{io.TeeReader(req.Body, reqBody), io.NopCloser(nil)}
+		} else {
+			req.Body = struct {
+				io.Reader
+				io.Closer
+			}{bytes.NewReader(reqBody.Bytes()), io.NopCloser(nil)}
 		}
-		req.Body, _ = req.GetBody()
-	}
-	first := true
-	try := func() error {
-		if first && logEnabled {
-			b, err := httputil.DumpRequestOut(req, true)
-			logger.Debug("Do", "request", string(b), "methd", req.Method, "dumpErr", err)
-			if err != nil {
-				return err
-			}
-		}
-		first = false
-
-		start := time.Now()
 		resp, err := httpClient.Do(req.WithContext(ctx))
 		if err != nil {
 			logger.Error("do", "url", req.URL.String(), "method", req.Method, "dur", time.Since(start).String(), "error", err)
@@ -1206,13 +1194,6 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 			return fmt.Errorf("empty response")
 		}
 		logger.Info("do", "url", req.URL.String(), "method", req.Method, "dur", time.Since(start).String(), "hasBody", resp.Body != nil, "status", resp.Status)
-		if logEnabled {
-			b, err := httputil.DumpResponse(resp, true)
-			logger.Debug("Do", "response", string(b), "dumpErr", err)
-			if err != nil {
-				return err
-			}
-		}
 		if resp.Body == nil {
 			return nil
 		}
