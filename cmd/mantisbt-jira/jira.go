@@ -1226,10 +1226,11 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		}
 		return nil
 	}
-	if err := try(); err != nil {
+	if err = try(); err != nil {
 		for iter := requestStrategy.Start(); ; {
 			var jerr *JIRAError
 			if err = try(); err == nil || errors.As(err, &jerr) {
+				err = nil
 				break
 			}
 			logger.Error("try", "count", iter.Count(), "error", err)
@@ -1239,7 +1240,7 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		}
 	}
 
-	return respBuf.Bytes(), changed, nil
+	return respBuf.Bytes(), changed, err
 }
 
 func (t *Token) ensure(ctx context.Context, httpClient *http.Client) (bool, error) {

@@ -102,11 +102,12 @@ func serve(ctx context.Context, dir string, alertEmails []string) error {
 
 	sendAlert := func(err error) error { return nil }
 	if len(alertEmails) != 0 {
+		hostname, _ := os.Hostname()
 		var buf bytes.Buffer
 		sendAlert = func(alert error) error {
 			cmd := exec.CommandContext(ctx, "sendmail", alertEmails...)
 			buf.Reset()
-			fmt.Fprintf(&buf, "From: mantisbt-jira@lnx-web-uno\r\nSubject: Mantis->JIRA hiba\r\n\r\n%+v", alert)
+			fmt.Fprintf(&buf, "From: mantisbt-jira@"+hostname+"\r\nSubject: Mantis->JIRA hiba\r\n\r\n%+v", alert)
 			cmd.Stdin = bytes.NewReader(buf.Bytes())
 			if b, err := cmd.CombinedOutput(); err != nil {
 				logger.Error("sendmail", "args", cmd.Args, "output", string(b), "error", err)
