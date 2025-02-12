@@ -987,7 +987,7 @@ func (svc *Jira) IssueDoTransitionTo(ctx context.Context, issueID, targetStatus,
 	transitions, err := svc.IssueTransitions(ctx, issueID, false)
 	logger.Warn("IssueTransitions", "issueID", issueID, "error", err)
 	if err != nil {
-		return fmt.Errorf("Get status of %q: %w", issueID, err)
+		return fmt.Errorf("get status of %q: %w", issueID, err)
 	}
 	possible := make(map[string]JIRATransition, len(transitions))
 	for _, t := range transitions {

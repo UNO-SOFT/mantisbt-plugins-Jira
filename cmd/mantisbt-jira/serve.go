@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/google/renameio/v2"
@@ -77,11 +78,11 @@ func (svc *SVC) Enqueue(ctx context.Context, queuesDir string, t task) error {
 		hsh := sha512.Sum512_224(b)
 		svc.queueName = base64.URLEncoding.EncodeToString(hsh[:])
 		dir := filepath.Join(queuesDir, svc.queueName)
-		_ = os.MkdirAll(dir, 0750)
+		mkdErr := os.MkdirAll(dir, 0750)
 		fn := filepath.Join(dir, configFileName)
 		logger.Info("write config", "file", fn)
 		if err = renameio.WriteFile(fn, b, 0400); err != nil {
-			logger.Error("Write config", "file", fn, "error", err)
+			logger.Error("Write config", "file", fn, "error", err, "MkdirAll", mkdErr)
 			return fmt.Errorf("write %q: %w", fn, err)
 		}
 		if svc.queue, err = dirq.New(dir); err != nil {
@@ -101,10 +102,57 @@ func serve(ctx context.Context, dir string, alertEmails []string) error {
 	logger.Debug("serve", "dir", dir)
 
 	sendAlert := func(err error) error { return nil }
+	sendAlerts := func() error { return nil }
 	if len(alertEmails) != 0 {
 		hostname, _ := os.Hostname()
-		var buf bytes.Buffer
+		var (
+			buf       bytes.Buffer
+			errs      []error
+			errsSeen  = make(map[string]struct{})
+			errsTimer *time.Timer
+			errsMu    sync.Mutex
+		)
 		sendAlert = func(alert error) error {
+			if alert == nil {
+				return nil
+			}
+			var doSend bool
+			errS := alert.Error()
+			errsMu.Lock()
+			if _, ok := errsSeen[errS]; !ok {
+				errsSeen[errS] = struct{}{}
+				errs = append(errs, alert)
+				if doSend = len(errs) >= 100; !doSend {
+					logger.Debug("sendAlert", "len", len(errs), "timer", errsTimer != nil)
+					if errsTimer == nil {
+						doSend = true
+						errsTimer = time.AfterFunc(15*time.Minute, func() { sendAlerts() })
+					}
+				}
+			}
+			errsMu.Unlock()
+			if doSend {
+				return sendAlerts()
+			}
+			return nil
+		}
+		sendAlerts = func() error {
+			var alert error
+			errsMu.Lock()
+			if len(errs) != 0 {
+				alert = errors.Join(errs...)
+				errs = errs[:0]
+				clear(errsSeen)
+				if errsTimer != nil {
+					errsTimer.Stop()
+					errsTimer = nil
+				}
+			}
+			errsMu.Unlock()
+			logger.Debug("sendAlerts", "alert", alert)
+			if alert == nil {
+				return nil
+			}
 			cmd := exec.CommandContext(ctx, "sendmail", alertEmails...)
 			buf.Reset()
 			fmt.Fprintf(&buf, "From: mantisbt-jira@"+hostname+"\r\nSubject: Mantis->JIRA hiba\r\n\r\n%+v", alert)
@@ -116,6 +164,7 @@ func serve(ctx context.Context, dir string, alertEmails []string) error {
 			logger.Info("sendmail", "args", cmd.Args)
 			return nil
 		}
+		defer sendAlerts()
 	}
 
 	f := func(ctx context.Context, svc *SVC, p []byte, logger *slog.Logger) error {
