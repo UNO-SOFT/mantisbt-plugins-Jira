@@ -267,7 +267,7 @@ func serve(ctx context.Context, dir string, alertEmails []string) error {
 					case <-ticker.C:
 						if err := Q.Dequeue(ctx, g); err != nil {
 							if errors.Is(err, dirq.ErrEmpty) {
-								logger.Info("Dequeue empty")
+								logger.Debug("Dequeue empty")
 							} else if errors.Is(err, errAuthenticate) {
 								logger.Warn("Dequeue", "error", err)
 								return
