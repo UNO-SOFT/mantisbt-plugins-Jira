@@ -405,7 +405,7 @@ func Main() error {
 
 	client := *http.DefaultClient
 	if client.Transport == nil {
-		client.Transport = http.DefaultTransport
+		client.Transport = http.DefaultTransport.(*http.Transport).Clone()
 	}
 	if logger.Enabled(ctx, slog.LevelDebug) {
 		client.Transport = loghttp.Transport(client.Transport)

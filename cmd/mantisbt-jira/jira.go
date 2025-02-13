@@ -1170,77 +1170,47 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 	*/
 	req.Header.Set("Cookie", "JSESSIONID="+t.JSessionID)
 	req.Header.Set("Authorization", "Bearer "+t.AccessToken)
-	var reqBody *bytes.Buffer
-	try := func() error {
-		start := time.Now()
-		if reqBody == nil {
-			reqBody = new(bytes.Buffer)
-			req.Body = struct {
-				io.Reader
-				io.Closer
-			}{io.TeeReader(req.Body, reqBody), io.NopCloser(nil)}
+	start := time.Now()
+	resp, err := httpClient.Do(req.WithContext(ctx))
+	if err != nil {
+		logger.Error("do", "url", req.URL.String(), "method", req.Method, "dur", time.Since(start).String(), "error", err)
+		return respBuf.Bytes(), changed, err
+	}
+	if resp == nil {
+		return respBuf.Bytes(), changed, fmt.Errorf("empty response")
+	}
+	logger.Info("do", "url", req.URL.String(), "method", req.Method, "dur", time.Since(start).String(), "hasBody", resp.Body != nil, "status", resp.Status)
+	if resp.Body == nil {
+		return respBuf.Bytes(), changed, nil
+	}
+	respBuf.Reset()
+	_, err = io.Copy(&respBuf, resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		logger.Error("read request", "error", err)
+		return respBuf.Bytes(), changed, err
+	}
+	if bytes.Contains(respBuf.Bytes(), []byte(`"ErrorCode"`)) ||
+		bytes.Contains(respBuf.Bytes(), []byte(`"Error"`)) ||
+		bytes.Contains(respBuf.Bytes(), []byte(`"fault"`)) {
+		var jerr JIRAError
+		err = json.Unmarshal(respBuf.Bytes(), &jerr)
+		if err != nil {
+			logger.Error("Unmarshal JIRAError", "jErr", jerr, "jErrS", fmt.Sprintf("%#v", jerr), "buf", respBuf.String(), "error", err)
 		} else {
-			req.Body = struct {
-				io.Reader
-				io.Closer
-			}{bytes.NewReader(reqBody.Bytes()), io.NopCloser(nil)}
+			logger.Debug("Unmarshal JIRAError", "jErr", jerr, "jErrS", fmt.Sprintf("%#v", jerr))
 		}
-		resp, err := httpClient.Do(req.WithContext(ctx))
-		if err != nil {
-			logger.Error("do", "url", req.URL.String(), "method", req.Method, "dur", time.Since(start).String(), "error", err)
-			return err
-		}
-		if resp == nil {
-			return fmt.Errorf("empty response")
-		}
-		logger.Info("do", "url", req.URL.String(), "method", req.Method, "dur", time.Since(start).String(), "hasBody", resp.Body != nil, "status", resp.Status)
-		if resp.Body == nil {
-			return nil
-		}
-		respBuf.Reset()
-		_, err = io.Copy(&respBuf, resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			logger.Error("read request", "error", err)
-			return err
-		}
-		if bytes.Contains(respBuf.Bytes(), []byte(`"ErrorCode"`)) ||
-			bytes.Contains(respBuf.Bytes(), []byte(`"Error"`)) ||
-			bytes.Contains(respBuf.Bytes(), []byte(`"fault"`)) {
-			var jerr JIRAError
-			err = json.Unmarshal(respBuf.Bytes(), &jerr)
-			if err != nil {
-				logger.Error("Unmarshal JIRAError", "jErr", jerr, "jErrS", fmt.Sprintf("%#v", jerr), "buf", respBuf.String(), "error", err)
-			} else {
-				logger.Debug("Unmarshal JIRAError", "jErr", jerr, "jErrS", fmt.Sprintf("%#v", jerr))
+		if err == nil && jerr.IsValid() {
+			if jerr.Code == "" {
+				jerr.Code = resp.Status
 			}
-			if err == nil && jerr.IsValid() {
-				if jerr.Code == "" {
-					jerr.Code = resp.Status
-				}
-				return &jerr
-			}
-		}
-		if resp.StatusCode >= 400 {
-			return &JIRAError{Code: resp.Status, Message: respBuf.String()}
-		}
-		return nil
-	}
-	if err = try(); err != nil {
-		for iter := requestStrategy.Start(); ; {
-			var jerr *JIRAError
-			if err = try(); err == nil || errors.As(err, &jerr) {
-				err = nil
-				break
-			}
-			logger.Error("try", "count", iter.Count(), "error", err)
-			if !iter.Next(ctx.Done()) {
-				break
-			}
+			return respBuf.Bytes(), changed, &jerr
 		}
 	}
-
-	return respBuf.Bytes(), changed, err
+	if resp.StatusCode >= 400 {
+		return respBuf.Bytes(), changed, &JIRAError{Code: resp.Status, Message: respBuf.String()}
+	}
+	return respBuf.Bytes(), changed, nil
 }
 
 func (t *Token) ensure(ctx context.Context, httpClient *http.Client) (bool, error) {
