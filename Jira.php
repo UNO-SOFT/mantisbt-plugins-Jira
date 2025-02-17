@@ -82,9 +82,9 @@ class JiraPlugin extends MantisPlugin {
 			$t_target_status_id = 'CLOSED';  // CLOSED
 		} elseif( $p_new->status >= 80 ) {
 			$t_target_status_id = 'RESOLVED';  // RESOLVED
-		} elseif( $p_new->status = 50 ) {
+		} elseif( $p_new->status == 50 ) {
 			$t_target_status_id = 'IN_PROGRESS';  // INPROGRESS
-		} elseif( $p_new->status = 55 ) {
+		} elseif( $p_new->status == 55 ) {
 			$t_target_status_id = 'ON_HOLD';  // ONHOLD
 		}
 
@@ -247,7 +247,12 @@ $this->log( 'comment added' );
 
 	function log( $p_text ) {
 		if( !$this->log_file ) {
-			$this->log_file = fopen( '/var/log/mantis/jira' . (SYS_FLAVOR == 'dev' ? '-dev' : '') . '.log', 'a' );
+			$t_fn = '/var/log/mantis/jira';
+			if( SYS_FLAVOR == 'dev' ) {
+				$t_fn .= '-dev';
+			} 
+			$t_fn .= '.log';
+			$this->log_file = fopen( $t_fn, 'a' );
 		}
 		fwrite( $this->log_file, $p_text . "\n" );
 		fflush( $this->log_file );
