@@ -110,7 +110,6 @@ class JiraPlugin extends MantisPlugin {
 	}
 
 	function issueid_get( $p_bug_id ) : string {
-		$this->log( 'bugnote_add(' . $p_event_name . ', ' . $p_bug_id . ' bugnote_id=' . $p_bugnote_id . ' files=' . var_export( $p_files, TRUE ) . ')' );
 		if( $this->issueid_field_id === 0 ) {
 			$this->issueid_field_id = custom_field_id_from_name( 'nyilvszám' );
 		}
@@ -126,8 +125,8 @@ class JiraPlugin extends MantisPlugin {
 		return $t_issueid;
 	}
 
-	function bugnote_add( $p_event_name, $p_bug_id, $p_bugnote_id, $files ) {
-		$p_files = $files;
+	function bugnote_add( $p_event_name, $p_bug_id, $p_bugnote_id, $p_files ) {
+		$this->log( 'bugnote_add(' . $p_event_name . ', ' . $p_bug_id . ' bugnote_id=' . $p_bugnote_id . ' files=' . var_export( $p_files, TRUE ) . ')' );
 		$t_issueid = $this->issueid_get( $p_bug_id );
 		if( !$t_issueid ) {
 			return;
