@@ -997,7 +997,7 @@ func (svc *Jira) IssueDoTransitionTo(ctx context.Context, issueID, targetStatus,
 	wanted := make([]string, 0, 2)
 	switch targetStatus {
 	case "IN_PROGRESS":
-		wanted = append(wanted, "51")
+		wanted = append(wanted, "11", "51")
 	case "CLOSED", "RESOLVED":
 		wanted = append(wanted, "21", "61")
 	case "ON_HOLD":
