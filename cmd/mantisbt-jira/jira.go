@@ -1130,10 +1130,6 @@ var (
 		Delay: time.Second, MaxDelay: 5 * time.Second, MaxCount: 3,
 		MaxDuration: time.Minute,
 	}
-	requestStrategy = retry.Strategy{
-		Delay: time.Second, MaxDelay: 5 * time.Minute,
-		MaxDuration: 24 * time.Hour,
-	}
 )
 
 func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Request) ([]byte, bool, error) {

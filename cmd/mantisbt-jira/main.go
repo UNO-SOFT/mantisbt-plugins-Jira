@@ -64,7 +64,7 @@ type SVC struct {
 	TokensFile                   string
 	JIRAUser, JIRAPassword       string
 	queueName                    string
-	queue                        dirq.Queue
+	queue                        *dirq.Queue
 }
 
 // Main is the main function
