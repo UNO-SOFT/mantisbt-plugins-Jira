@@ -258,7 +258,7 @@ func serve(ctx context.Context, dir string, alertEmails []string) error {
 				return err
 			}
 
-			ticker := time.NewTicker(time.Minute)
+			ticker := time.NewTicker(15 * time.Second)
 			go func() {
 				for {
 					select {
