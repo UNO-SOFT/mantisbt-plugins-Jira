@@ -76,6 +76,7 @@ func Main() error {
 	if svc.BaseURL == "" {
 		svc.BaseURL = DefaultJiraURL
 	}
+	defer svc.Close()
 
 	var mantisID int
 	FS := ff.NewFlagSet("attach")

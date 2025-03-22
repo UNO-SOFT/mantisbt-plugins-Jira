@@ -33,6 +33,15 @@ type task struct {
 	MantisID           int
 }
 
+func (svc *SVC) Close() error {
+	q := svc.queue
+	svc.queue = nil
+	if q != nil {
+		return q.Close()
+	}
+	return nil
+}
+
 func (svc *SVC) GetMantisID(ctx context.Context, issueID string) (string, error) {
 	issue, err := svc.IssueGet(ctx, issueID, []string{"customfield_15902"})
 	if err != nil {
@@ -208,7 +217,12 @@ func serve(ctx context.Context, dir string, alertEmails []string) error {
 		return err
 	}
 
-	seen := make(map[string]struct{})
+	services := make(map[string]*SVC)
+	defer func() {
+		for _, svc := range services {
+			svc.Close()
+		}
+	}()
 	F := func() error {
 		dis, err := os.ReadDir(dir)
 		if len(dis) == 0 && err != nil {
@@ -218,15 +232,15 @@ func serve(ctx context.Context, dir string, alertEmails []string) error {
 			if !di.Type().IsDir() {
 				continue
 			}
-			if _, ok := seen[di.Name()]; ok {
+			if _, ok := services[di.Name()]; ok {
 				continue
 			}
-			seen[di.Name()] = struct{}{}
+			svc := new(SVC)
+			services[di.Name()] = svc
 			dir := filepath.Join(dir, di.Name())
 			logger := logger.With("queue", dir)
 			fn := filepath.Join(dir, configFileName)
 			logger.Info("Read config", "file", fn)
-			var svc SVC
 			if b, err := os.ReadFile(fn); err != nil {
 				if os.IsNotExist(err) {
 					logger.Info("Read config", "file", fn, "error", err)
@@ -247,7 +261,7 @@ func serve(ctx context.Context, dir string, alertEmails []string) error {
 				return err
 			}
 			g := func(ctx context.Context, msg []byte) error {
-				return f(ctx, &svc, msg, logger)
+				return f(ctx, svc, msg, logger)
 			}
 			if err := Q.Dequeue(ctx, g); err != nil && !errors.Is(err, dirq.ErrEmpty) {
 				if errors.Is(err, errAuthenticate) {
