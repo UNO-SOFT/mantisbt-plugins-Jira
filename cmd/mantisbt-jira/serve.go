@@ -73,6 +73,9 @@ func (svc *SVC) checkMantisIssueID(ctx context.Context, issueID string, mantisID
 	logger.Info("checkMantisIssueID", "mantisID", mantisID, "issueID", issueID, "issueMantisID", issueMantisID)
 	// fmt.Println(issue.Fields.MantisID)
 	i, err := strconv.Atoi(issueMantisID)
+	if err != nil {
+		err = fmt.Errorf("%w: %w", err, errSkip)
+	}
 	return i == mantisID, err
 
 }
@@ -106,6 +109,8 @@ func (svc *SVC) Enqueue(ctx context.Context, queuesDir string, t task) error {
 	}
 	return svc.queue.Enqueue(body)
 }
+
+var errSkip = errors.New("skip")
 
 func serve(ctx context.Context, dir string, alertEmails []string) error {
 	logger.Debug("serve", "dir", dir)
@@ -176,7 +181,7 @@ func serve(ctx context.Context, dir string, alertEmails []string) error {
 		defer sendAlerts()
 	}
 
-	f := func(ctx context.Context, svc *SVC, p []byte, logger *slog.Logger) error {
+	processOne := func(ctx context.Context, svc *SVC, p []byte, logger *slog.Logger) error {
 		logger.Debug("Dequeue", "data", p)
 		var t task
 		if err := json.Unmarshal(p, &t); err != nil {
@@ -223,7 +228,7 @@ func serve(ctx context.Context, dir string, alertEmails []string) error {
 			svc.Close()
 		}
 	}()
-	F := func() error {
+	batch := func() error {
 		dis, err := os.ReadDir(dir)
 		if len(dis) == 0 && err != nil {
 			return fmt.Errorf("ReadDir(%q): %w", dir, err)
@@ -261,7 +266,13 @@ func serve(ctx context.Context, dir string, alertEmails []string) error {
 				return err
 			}
 			g := func(ctx context.Context, msg []byte) error {
-				return f(ctx, svc, msg, logger)
+				if err := processOne(ctx, svc, msg, logger); err != nil {
+					logger.Error("processOne", "msg", msg, "error", err)
+					if !errors.Is(err, errSkip) {
+						return err
+					}
+				}
+				return nil
 			}
 			if err := Q.Dequeue(ctx, g); err != nil && !errors.Is(err, dirq.ErrEmpty) {
 				if errors.Is(err, errAuthenticate) {
@@ -297,7 +308,7 @@ func serve(ctx context.Context, dir string, alertEmails []string) error {
 		return nil
 	}
 
-	if err := F(); err != nil {
+	if err := batch(); err != nil {
 		return err
 	}
 	ticker := time.NewTicker(time.Minute)
@@ -306,7 +317,7 @@ func serve(ctx context.Context, dir string, alertEmails []string) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			if err := F(); err != nil {
+			if err := batch(); err != nil {
 				return err
 			}
 		}

@@ -1007,8 +1007,8 @@ func (svc *Jira) IssueDoTransitionTo(ctx context.Context, issueID, targetStatus,
 		if t, ok := possible[w]; ok {
 			err := svc.IssueDoTransition(ctx, issueID, t.ID, comment)
 			if err != nil {
-				err = fmt.Errorf("%q transition %q: %w",
-					issueID, t.ID, err)
+				err = fmt.Errorf("%q transition %q: %w: %w",
+					issueID, t.ID, err, errSkip)
 			}
 			return err
 		}
