@@ -724,17 +724,18 @@ func (svc *Jira) IssueAddComment(ctx context.Context, issueID, body string) erro
 	URL := svc.URLFor("issue", issueID, "comment")
 	b, err := json.Marshal(JSONCommentBody{Body: body}) //, Visibility: JIRAVisibility{Type: "role", Value: "Administrators"}})
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal JSONCommentBody: %w", err)
 	}
 	req, err := svc.NewRequest(ctx, "POST", URL, b)
 	if err != nil {
-		return err
+		return fmt.Errorf("NewRequest(POST, %q): %w", URL, err)
 	}
 	resp, err := svc.Do(ctx, req)
-	logger.Info("IssueAddComment", "resp", resp, "error", err)
 	if err != nil {
-		return err
+		logger.Error("IssueAddComment", "URL", req.URL, "headers", req.Header, "error", err)
+		return fmt.Errorf("Do %s %q: %w", req.Method, req.URL, err)
 	}
+	logger.Info("IssueAddComment", "resp", resp)
 	var comment JIRAComment
 	return json.Unmarshal(resp, &comment)
 }
@@ -754,8 +755,8 @@ func (svc *Jira) IssueAddAttachment(ctx context.Context, issueID, fileName, mime
 	if err != nil {
 		return err
 	}
-	if _, err = io.Copy(w, body); err != nil {
-		return err
+	if _, err = io.Copy(w, io.LimitReader(body, 128<<20)); err != nil {
+		return fmt.Errorf("read body: %w", err)
 	}
 	if err := mw.Close(); err != nil {
 		return err
@@ -763,15 +764,16 @@ func (svc *Jira) IssueAddAttachment(ctx context.Context, issueID, fileName, mime
 	URL := svc.URLFor("issue", issueID, "attachments")
 	req, err := http.NewRequestWithContext(ctx, "POST", URL.String(), bytes.NewReader(buf.Bytes()))
 	if err != nil {
-		return err
+		return fmt.Errorf("NewRequest(POST, %q): %w", URL, err)
 	}
 	req.Header.Set("X-Atlassian-Token", "no-check")
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 	resp, err := svc.Do(ctx, req)
-	logger.Info("IssueAddAttachment", "resp", resp, "error", err)
 	if err != nil {
-		return err
+		logger.Error("IssueAddAttachment", "resp", resp, "error", err)
+		return fmt.Errorf("IssueAddAttachment(%q): %w", URL, err)
 	}
+	logger.Info("IssueAddAttachment", "resp", resp)
 	attachments := make([]JIRAAttachment, 0, 1)
 	return json.Unmarshal(resp, &attachments)
 }
@@ -799,13 +801,14 @@ func (svc *Jira) IssueTransitions(ctx context.Context, issueID string, fields bo
 	}
 	req, err := svc.NewRequest(ctx, "GET", URL, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("NewRequest(GET, %q): %w", URL, err)
 	}
 	resp, err := svc.Do(ctx, req)
-	logger.Info("IssueTransitions", "resp", resp, "error", err)
 	if err != nil {
+		logger.Error("IssueTransitions", "resp", resp, "error", err)
 		return nil, err
 	}
+	logger.Info("IssueTransitions", "resp", resp)
 	var transitions getTransitionsResp
 	err = json.Unmarshal(resp, &transitions)
 	return transitions.Transitions, err
@@ -911,17 +914,18 @@ func (svc *Jira) IssueDoTransition(ctx context.Context, issueID, transition, com
 	body.Transition.ID = transition
 	b, err := json.Marshal(body)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal JIRATransitionBody: %w", err)
 	}
 	req, err := svc.NewRequest(ctx, "POST", URL, b)
 	if err != nil {
-		return err
+		return fmt.Errorf("NewRequest(POST, %q): %w", URL, err)
 	}
 	resp, err := svc.Do(ctx, req)
-	logger.Info("IssueDoTransition", "resp", resp, "error", err)
 	if err != nil {
+		logger.Error("IssueDoTransition", "resp", resp, "error", err)
 		return err
 	}
+	logger.Info("IssueDoTransition", "resp", resp)
 	// var comment JIRAComment
 	// return json.Unmarshal(resp, &comment)
 	return nil
@@ -974,8 +978,16 @@ func (svc *Jira) IssueDoTransition(ctx context.Context, issueID, transition, com
         },
 */
 
+var JMTransitions = map[string][]string{
+	"IN_PROGRESS": []string{"11", "51"},
+	"CLOSED":      []string{"21", "61"},
+	"RESOLVED":    []string{"21", "61"},
+	"ON_HOLD":     []string{"41"},
+}
+
 // IssueDoTransitionTo transits the issue's status.
 func (svc *Jira) IssueDoTransitionTo(ctx context.Context, issueID, targetStatus, comment string) error {
+	logger := logger.With(slog.String("issueID", issueID))
 	/*
 		Jira státuszváltás	Jira Transition ID
 		„New”  „In progress”	11
@@ -985,35 +997,38 @@ func (svc *Jira) IssueDoTransitionTo(ctx context.Context, issueID, targetStatus,
 		„In progress”  „On hold”	41
 	*/
 	transitions, err := svc.IssueTransitions(ctx, issueID, false)
-	logger.Warn("IssueTransitions", "issueID", issueID, "error", err)
 	if err != nil {
-		return fmt.Errorf("get status of %q: %w", issueID, err)
+		logger.Error("IssueTransitions", "error", err)
+		// return fmt.Errorf("get status of %q: %w", issueID, err)
+		transitions = nil
+	} else {
+		logger.Info("IssueTransitions", "transitions", transitions)
 	}
-	possible := make(map[string]JIRATransition, len(transitions))
-	for _, t := range transitions {
-		possible[t.ID] = t
-	}
-
-	wanted := make([]string, 0, 2)
-	switch targetStatus {
-	case "IN_PROGRESS":
-		wanted = append(wanted, "11", "51")
-	case "CLOSED", "RESOLVED":
-		wanted = append(wanted, "21", "61")
-	case "ON_HOLD":
-		wanted = append(wanted, "41")
-	}
-	for _, w := range wanted {
-		if t, ok := possible[w]; ok {
-			err := svc.IssueDoTransition(ctx, issueID, t.ID, comment)
-			if err != nil {
-				err = fmt.Errorf("%q transition %q: %w: %w",
-					issueID, t.ID, err, errSkip)
-			}
-			return err
+	var possible map[string]JIRATransition
+	if len(transitions) != 0 {
+		possible = make(map[string]JIRATransition, len(transitions))
+		for _, t := range transitions {
+			possible[t.ID] = t
 		}
 	}
-	logger.Warn("no wanted found possible", "target", targetStatus, "wanted", wanted, "possible", possible)
+
+	wanted := JMTransitions[targetStatus]
+	for _, w := range wanted {
+		if len(possible) == 0 { // try all
+			if err := svc.IssueDoTransition(ctx, issueID, w, comment); err != nil {
+				logger.Warn("IssueDoTransition", "want", w, "error", err)
+			} else {
+				return nil
+			}
+		} else if t, ok := possible[w]; ok {
+			if err := svc.IssueDoTransition(ctx, issueID, t.ID, comment); err != nil {
+				logger.Error("IssueDoTransition", "t", t.ID, "want", w, "error", err)
+			} else {
+				return nil
+			}
+		}
+	}
+	logger.Warn("no transition succeeded", "target", targetStatus, "wanted", wanted, "possible", possible)
 	return nil
 }
 
@@ -1171,7 +1186,7 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		resp, err := httpClient.Do(req.WithContext(ctx))
 		if err != nil {
 			logger.Error("do", "url", req.URL.String(), "method", req.Method, "dur", time.Since(start).String(), "error", err)
-			return err
+			return fmt.Errorf("do %s %q: %w", req.Method, req.URL, err)
 		}
 		if resp == nil {
 			return fmt.Errorf("empty response")
@@ -1185,23 +1200,22 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		resp.Body.Close()
 		if err != nil {
 			logger.Error("read request", "error", err)
-			return err
+			return fmt.Errorf("read request body: %w", err)
 		}
 		if bytes.Contains(respBuf.Bytes(), []byte(`"ErrorCode"`)) ||
 			bytes.Contains(respBuf.Bytes(), []byte(`"Error"`)) ||
 			bytes.Contains(respBuf.Bytes(), []byte(`"fault"`)) {
 			var jerr JIRAError
-			err = json.Unmarshal(respBuf.Bytes(), &jerr)
-			if err != nil {
-				logger.Error("Unmarshal JIRAError", "jErr", jerr, "jErrS", fmt.Sprintf("%#v", jerr), "buf", respBuf.String(), "error", err)
+			if err := json.Unmarshal(respBuf.Bytes(), &jerr); err != nil {
+				logger.Warn("Unmarshal JIRAError", "jErr", jerr, "jErrS", fmt.Sprintf("%#v", jerr), "buf", respBuf.String(), "error", err)
 			} else {
 				logger.Debug("Unmarshal JIRAError", "jErr", jerr, "jErrS", fmt.Sprintf("%#v", jerr))
-			}
-			if err == nil && jerr.IsValid() {
-				if jerr.Code == "" {
-					jerr.Code = resp.Status
+				if jerr.IsValid() {
+					if jerr.Code == "" {
+						jerr.Code = resp.Status
+					}
+					return &jerr
 				}
-				return &jerr
 			}
 		}
 		if resp.StatusCode >= 400 {
@@ -1233,12 +1247,12 @@ func (t *Token) ensure(ctx context.Context, httpClient *http.Client) (bool, erro
 		if err := json.NewEncoder(&reqBuf).Encode(userPass{
 			Username: t.Username, Password: t.Password,
 		}); err != nil {
-			return changed, err
+			return changed, fmt.Errorf("marshal userPass: %w", err)
 		}
 		try := func() error {
 			req, err := http.NewRequestWithContext(ctx, "POST", t.AuthURL+"?grant_type=password", bytes.NewReader(reqBuf.Bytes()))
 			if err != nil {
-				return err
+				return fmt.Errorf("NewRequest(POST, %q): %w", t.AuthURL, err)
 			}
 			req.GetBody = func() (io.ReadCloser, error) {
 				return struct {
@@ -1257,7 +1271,7 @@ func (t *Token) ensure(ctx context.Context, httpClient *http.Client) (bool, erro
 				return fmt.Errorf("%w: %w", errAuthenticate, err)
 			}
 			if resp == nil || resp.Body == nil {
-				return fmt.Errorf("empty response")
+				return fmt.Errorf("%w: empty response", errAuthenticate)
 			}
 			respBuf.Reset()
 			_, err = io.Copy(&respBuf, resp.Body)
@@ -1266,9 +1280,9 @@ func (t *Token) ensure(ctx context.Context, httpClient *http.Client) (bool, erro
 				logger.Debug("authenticate", "response", respBuf.String())
 			}
 			if err != nil {
-				return fmt.Errorf("%w: %w", errAuthenticate, err)
+				return fmt.Errorf("%w: read response body: %w", errAuthenticate, err)
 			} else if respBuf.Len() == 0 {
-				return fmt.Errorf("%s: empty response", errAuthenticate)
+				return fmt.Errorf("%w: empty response", errAuthenticate)
 			} else if err = json.Unmarshal(respBuf.Bytes(), &t); err != nil {
 				return fmt.Errorf("%w: decode %q: %w", errAuthenticate, respBuf.String(), err)
 			} else if !t.IsValid() {

@@ -150,8 +150,6 @@ class JiraPlugin extends MantisPlugin {
 				return;
 			}
 
-//TODO: ha kérdésre jön megjegyzés, akkor át kell állítani folyamatban-ra, ÉS ezt elküldeni a Jira-nak is!
-			
 			if( $t_bugnote->reporter_id == $this->skip_reporter_id ) {
 				// feldolg a végét
 				// <<Kiss.Balazs@aegon.hu>>
@@ -174,9 +172,25 @@ $this->log( 'email: ' . var_export( $matches, TRUE ) . ' uid=' . $t_uid );
 						db_query( $t_query, array( $t_bugnote->note, $t_bugnote->bugnote_text_id ) );
 					}
 				}
+
+				// https://www.unosoft.hu/mantis/alfa/view.php?id=17493#c189554
+				// A Jira oldalon tett, Jirából érkező kommentnek triggerelnie kell a státuszváltást
+				// kérdésből folyamatbanra Mantis oldalon.
+				$t_bug = bug_get( $p_bug_id );
+				$t_nxt = 0;
+				if( $t_bug->status == 27 ) {  // PROPOSAL_FEEDBACK
+					$t_nxt = 25;  // ASK_PROPOSAL
+				} elseif( $t_bug->status == 55 ) {  // ASSIGNED_FEEDBACK
+					$t_nxt = 55;  // ASSIGNED
+				}
+				if( $t_nxt != 0 ) {
+					$t_bug->status = $t_nxt;
+					$t_bug->update();
+				}
+
 				return;
 			}
-
+ 
 $this->log( 'note length: ' .strlen( $t_bugnote->note ) );
 			if( strlen($t_bugnote->note) !== 0 ) {
 				$this->call("comment", array( 
