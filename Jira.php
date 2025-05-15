@@ -178,14 +178,25 @@ $this->log( 'email: ' . var_export( $matches, TRUE ) . ' uid=' . $t_uid );
 				// kérdésből folyamatbanra Mantis oldalon.
 				$t_bug = bug_get( $p_bug_id );
 				$t_nxt = 0;
+				
 				if( $t_bug->status == 27 ) {  // PROPOSAL_FEEDBACK
 					$t_nxt = 25;  // ASK_PROPOSAL
 				} elseif( $t_bug->status == 55 ) {  // ASSIGNED_FEEDBACK
-					$t_nxt = 55;  // ASSIGNED
+					$t_nxt = 50;  // ASSIGNED
 				}
+$this->log( 'bug: ' . $p_bug_id . ' status: ' . $t_bug->status . ' nxt=' . $t_nxt);
 				if( $t_nxt != 0 ) {
 					$t_bug->status = $t_nxt;
 					$t_bug->update();
+
+					if( $t_nxt == 50 ) {
+						// ILYENKOR IS VISSZA KELL JELEZNI!
+						$this->call("issue", array(
+							"transition", "to",
+							$t_issueid,
+							'IN_PROGRESS' ) 
+						);
+					}
 				}
 
 				return;
