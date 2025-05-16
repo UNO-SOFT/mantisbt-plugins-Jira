@@ -69,6 +69,7 @@ type SVC struct {
 
 // Main is the main function
 func Main() error {
+	slog.SetDefault(logger)
 	var queuesDir string
 	timeout := time.Minute
 

@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -18,15 +19,17 @@ import (
 	"github.com/google/renameio/v2"
 	"github.com/oklog/ulid/v2"
 	"github.com/rjeczalik/notify"
+	"golang.org/x/time/rate"
 )
 
 const ext = ".dirq-item.dat"
 
 type Queue struct {
-	Dir string
+	fh      *os.File
+	limiter *rate.Limiter
+	Dir     string
 
 	mu sync.Mutex
-	fh *os.File
 }
 
 func (Q *Queue) Close() error {
@@ -40,17 +43,18 @@ func (Q *Queue) Close() error {
 }
 
 func New(dir string) (*Queue, error) {
-	return &Queue{Dir: dir}, nil
+	return &Queue{Dir: dir, limiter: rate.NewLimiter(1, 1)}, nil
 }
 
 // Enqueue a message.
 //
 // Does not lock (not needed).
 func (Q *Queue) Enqueue(p []byte) error {
-	return renameio.WriteFile(
-		filepath.Join(Q.Dir, ulid.MustNew(ulid.Now(), ulid.DefaultEntropy()).String()+ext),
-		p,
-		0400)
+	fn := filepath.Join(
+		Q.Dir,
+		ulid.MustNew(ulid.Now(), ulid.DefaultEntropy()).String()+ext)
+	slog.Debug("Enqueue", "file", fn)
+	return renameio.WriteFile(fn, p, 0400)
 }
 
 // DequeueOne will call f on the first dequeueable message.
@@ -58,31 +62,42 @@ func (Q *Queue) Enqueue(p []byte) error {
 // otherwise it remains in the queue.
 func (Q *Queue) Dequeue(ctx context.Context, f func(context.Context, []byte) error) error {
 	if err := ctx.Err(); err != nil {
+		slog.Error("Dequeue", "error", err)
 		return err
 	}
 	Q.mu.Lock()
 	defer Q.mu.Unlock()
 	if err := Q.lock(); err != nil {
+		slog.Error("lock", "error", err)
 		return err
 	}
-	dis, err := Q.fh.ReadDir(-1)
+	dis, err := os.ReadDir(Q.Dir)
 	if len(dis) == 0 {
+		if err != nil {
+			slog.Error("ReadDir", "dir", Q.Dir, "error", err)
+		}
+		slog.Debug("empty", "dir", Q.Dir)
 		return err
 	}
-	var haveAny bool
+	names := make([]string, 0, len(dis))
 	for _, di := range dis {
 		nm := di.Name()
-		if !(di.Type().IsRegular() && strings.HasSuffix(nm, ext) &&
-			len(nm) == 26+len(ext)) {
-			continue
+		if di.Type().IsRegular() && strings.HasSuffix(nm, ext) &&
+			len(nm) == 26+len(ext) {
+			names = append(names, nm)
 		}
-		if err := Q.dequeueOne(ctx, f, filepath.Join(Q.Dir, nm)); err != nil {
+	}
+	slog.Debug("ReadDir2", "names", names)
+	if len(names) == 0 {
+		return ErrEmpty
+	}
+	slices.Sort(names)
+	for _, nm := range names {
+		if err := Q.dequeueOne(ctx, f, filepath.Join(Q.fh.Name(), nm)); err != nil {
+			slog.Error("dequeueOne", "name", nm, "error", err)
 			return err
 		}
-		haveAny = true
-	}
-	if !haveAny {
-		return ErrEmpty
+		slog.Info("dequeueOne", "name", nm)
 	}
 	return nil
 }
@@ -130,6 +145,19 @@ func (Q *Queue) Watch(ctx context.Context, f func(context.Context, []byte) error
 	}
 	defer notify.Stop(c)
 
+	evts := make(chan error, 1)
+	go func() {
+		for err := range evts {
+			if err != nil {
+				slog.Warn("evts EXIT", "error", err)
+				return
+			}
+			if err = Q.Dequeue(ctx, f); err != nil {
+				slog.Error("Dequeue", "error", err)
+			}
+		}
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -138,18 +166,23 @@ func (Q *Queue) Watch(ctx context.Context, f func(context.Context, []byte) error
 			if !ok {
 				return ctx.Err()
 			}
-			slog.Debug("notify", "path", ei.Path())
-			if bn := filepath.Base(ei.Path()); len(bn) == 26+len(ext) && strings.HasSuffix(bn, ext) {
-				_ = Q.DequeueOne(ctx, f, ei.Path())
+			bn := filepath.Base(ei.Path())
+			slog.Debug("notify", "path", ei.Path(), "length", len(bn)-len(ext))
+			if len(bn) == 26+len(ext) && strings.HasSuffix(bn, ext) {
+				if err := Q.limiter.Wait(ctx); err != nil {
+					select {
+					case evts <- err:
+					default:
+					}
+					return err
+				}
+				select {
+				case evts <- nil:
+				default:
+				}
 			}
 		}
 	}
-}
-
-func (Q *Queue) DequeueOne(ctx context.Context, f func(context.Context, []byte) error, fn string) error {
-	Q.mu.Lock()
-	defer Q.mu.Unlock()
-	return Q.dequeueOne(ctx, f, fn)
 }
 
 func (Q *Queue) dequeueOne(ctx context.Context, f func(context.Context, []byte) error, fn string) error {

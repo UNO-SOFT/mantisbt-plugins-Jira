@@ -1,3 +1,5 @@
+// Copyright 2025 Tamas Gulacsi. All rights reserved.
+
 package main
 
 import (
@@ -92,10 +94,12 @@ func (svc *SVC) Enqueue(ctx context.Context, queuesDir string, t task) error {
 		dir := filepath.Join(queuesDir, svc.queueName)
 		mkdErr := os.MkdirAll(dir, 0750)
 		fn := filepath.Join(dir, configFileName)
-		logger.Info("write config", "file", fn)
-		if err = renameio.WriteFile(fn, b, 0400); err != nil {
-			logger.Error("Write config", "file", fn, "error", err, "MkdirAll", mkdErr)
-			return fmt.Errorf("write %q: %w", fn, err)
+		if fi, err := os.Stat(fn); !(err == nil && fi.Size() == int64(len(b))) {
+			logger.Info("write config", "file", fn)
+			if err = renameio.WriteFile(fn, b, 0400); err != nil {
+				logger.Error("Write config", "file", fn, "error", err, "MkdirAll", mkdErr)
+				return fmt.Errorf("write %q: %w", fn, err)
+			}
 		}
 		if svc.queue, err = dirq.New(dir); err != nil {
 			logger.Error("new queue", "dir", dir, "error", err)
@@ -266,6 +270,7 @@ func serve(ctx context.Context, dir string, alertEmails []string) error {
 				return err
 			}
 			g := func(ctx context.Context, msg []byte) error {
+				logger.Warn("processOne", "msg", string(msg))
 				if err := processOne(ctx, svc, msg, logger); err != nil {
 					logger.Error("processOne", "msg", msg, "error", err)
 					if !errors.Is(err, errSkip) {
@@ -274,27 +279,22 @@ func serve(ctx context.Context, dir string, alertEmails []string) error {
 				}
 				return nil
 			}
-			if err := Q.Dequeue(ctx, g); err != nil && !errors.Is(err, dirq.ErrEmpty) {
-				if errors.Is(err, errAuthenticate) {
-					logger.Warn("Dequeue", "error", err)
-					sendAlert(err)
-					continue
-				}
-				return err
-			}
 
-			ticker := time.NewTicker(15 * time.Second)
+			ticker := time.NewTicker(1 * time.Second)
+			resetOnce := sync.OnceFunc(func() { ticker.Reset(15 * time.Second) })
 			go func() {
 				for {
 					select {
 					case <-ctx.Done():
 						return
 					case <-ticker.C:
+						resetOnce()
 						if err := Q.Dequeue(ctx, g); err != nil {
 							if errors.Is(err, dirq.ErrEmpty) {
 								logger.Debug("Dequeue empty")
 							} else if errors.Is(err, errAuthenticate) {
 								logger.Warn("Dequeue", "error", err)
+								sendAlert(err)
 								return
 							} else {
 								logger.Error("Dequeue", "error", err)
