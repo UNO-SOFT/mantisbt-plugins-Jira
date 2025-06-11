@@ -23,6 +23,7 @@ class JiraPlugin extends MantisPlugin {
 	private $issueid_field_id = 4;
 	private $skip_reporter_id = 0;
 	private $log_file = null;
+	private $jira_user_id = 0;
 
 	function __destruct() {
 		if( $this->log_file ) {
@@ -44,6 +45,7 @@ class JiraPlugin extends MantisPlugin {
 		$this->author = 'Tamás Gulácsi';		 # Author/team name
 		$this->contact = 'T.Gulacsi@unosoft.hu';		# Author/team e-mail address
 		$this->url = 'http://www.unosoft.hu';			# Support webpage
+		$this->jira_user_id = user_get_id_by_name( 'jira' );
 	}
 
 	function config() {
@@ -72,7 +74,32 @@ class JiraPlugin extends MantisPlugin {
 	}
 
 	function bug_update( $p_event, $p_old, &$p_new ) {
-		$this->log('bug_update(' . $p_old->id . ' status=' . $p_old->status . '=>' . $p_new->status . ')' );
+		$this->log('bug_update(' . $p_old->id . ' status=' . $p_old->status . '=>' . $p_new->status . ', priority=' . $p_old->priority . '=>' . $p_new->priority . ')' );
+
+		// https://www.unosoft.hu/mantis/alfa/view.php?id=17493#c192393
+		// 
+		// Ha mantis oldal kérdés státuszban van, Jira oldal pedig On hold,
+		// akkor Mantis oldalról az nem megengedett, hogy kérdés megválaszolása nélkül a mantison kérdésből átadva státuszt küldjetek Jira irányába..
+		// Szeretnénk, ha ez a mantis felületén a Bruno2 és Bruno3 INCIDENT projekt workflow-n tiltásra kerülne.
+		if( auth_get_current_user_id() !== $this->jira_user_id ) {
+			$t_break = false;
+			if( $p_old->status == 55 ) {
+				$p_new->status = $p_old->status; 
+				$t_break = true;
+			}
+			$this->log( 'old_priority=' . $p_old->priority . ' new_priority=' . $p_new->priority );
+			if( $p_old->priority != $p_new->priority ) {
+			// Bruno2 és Bruno3 INCIDENT projektben le legyen tiltva a prioritás módosítás lehetősége.
+				$this->log( 'priority change?' );
+				$p_new->priority = $p_old->priority;
+				$t_break = true;
+			}
+			if( $t_break ) {
+				// $this->log( 'UPDATE ' . var_export( $p_new, TRUE ) );
+				$p_new->update();
+			}
+		}
+
 		if( $p_old->status == $p_new->status || $p_old->status >= 80 ) {
 			return;
 		}
@@ -91,28 +118,6 @@ class JiraPlugin extends MantisPlugin {
 		$t_issueid = $this->issueid_get( $p_old->id );
 		$this->log( 'issue(' . $p_old->id. ' issueid=' . $t_issueid. ' tran_id=' . $t_tran_id . ' target_status_id=' . $t_target_status_id );
 		if( !$t_issueid ) {
-			return;
-		}
-
-		$t_break = FALSE;
-		// https://www.unosoft.hu/mantis/alfa/view.php?id=17493#c192393
-		// 
-		// Ha mantis oldal kérdés státuszban van, Jira oldal pedig On hold,
-		// akkor Mantis oldalról az nem megengedett, hogy kérdés megválaszolása nélkül a mantison kérdésből átadva státuszt küldjetek Jira irányába..
-		// Szeretnénk, ha ez a mantis felületén a Bruno2 és Bruno3 INCIDENT projekt workflow-n tiltásra kerülne.
-		if( $p_old->status == 55 ) {
-			$this->log( 'event: ' . var_export( $p_event, TRUE ) );
-  
-			$p_new->status = $p_old->status; 
-			$t_break = TRUE;
-		}
-		// Bruno2 és Bruno3 INCIDENT projektben le legyen tiltva a prioritás módosítás lehetősége.
-		if( $p_old->priority != $p_new->priority ) {
-			$p_new->priority = $p_old->priority;
-			$t_break = TRUE;
-		}
-		if( $t_break ) {
-			$p_new->update();
 			return;
 		}
 
@@ -136,7 +141,7 @@ class JiraPlugin extends MantisPlugin {
 			$this->issueid_field_id = custom_field_id_from_name( 'nyilvszám' );
 		}
 		if( $this->skip_reporter_id === 0 ) {
-			$this->skip_reporter_id = user_get_id_by_name( 'jira' );
+			$this->skip_reporter_id = $this->jira_user_id;
 		}
 		$t_issueid = custom_field_get_value( $this->issueid_field_id, $p_bug_id );
         $t_pattern = '/' . plugin_config_get( 'key_regexp', '^(INCIDENT|CHANGE|REQUEST|PROBLEM)-[0-9]+$' ) . '/';
