@@ -94,6 +94,28 @@ class JiraPlugin extends MantisPlugin {
 			return;
 		}
 
+		$t_break = FALSE;
+		// https://www.unosoft.hu/mantis/alfa/view.php?id=17493#c192393
+		// 
+		// Ha mantis oldal kérdés státuszban van, Jira oldal pedig On hold,
+		// akkor Mantis oldalról az nem megengedett, hogy kérdés megválaszolása nélkül a mantison kérdésből átadva státuszt küldjetek Jira irányába..
+		// Szeretnénk, ha ez a mantis felületén a Bruno2 és Bruno3 INCIDENT projekt workflow-n tiltásra kerülne.
+		if( $p_old->status == 55 ) {
+			$this->log( 'event: ' . var_export( $p_event, TRUE ) );
+  
+			$p_new->status = $p_old->status; 
+			$t_break = TRUE;
+		}
+		// Bruno2 és Bruno3 INCIDENT projektben le legyen tiltva a prioritás módosítás lehetősége.
+		if( $p_old->priority != $p_new->priority ) {
+			$p_new->priority = $p_old->priority;
+			$t_break = TRUE;
+		}
+		if( $t_break ) {
+			$p_new->update();
+			return;
+		}
+
 		if( $t_tran_id != 0 ) {
 			$this->call("issue", array(
 				"transition",
