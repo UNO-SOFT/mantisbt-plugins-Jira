@@ -13,14 +13,14 @@ require (
 	github.com/rjeczalik/notify v0.9.3
 	github.com/rogpeppe/retry v0.1.0
 	github.com/tgulacsi/go v0.27.8
+	golang.org/x/time v0.11.0
 )
 
 require (
 	github.com/go-logr/logr v1.4.2 // indirect
-	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394 // indirect
-	golang.org/x/sys v0.31.0 // indirect
-	golang.org/x/term v0.30.0 // indirect
-	golang.org/x/time v0.11.0 // indirect
+	golang.org/x/exp v0.0.0-20250506013437-ce4c2cf36ca6 // indirect
+	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/term v0.32.0 // indirect
 )
 
 replace github.com/UNO-SOFT/zlog => ../zlog

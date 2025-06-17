@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -57,6 +58,13 @@ type JIRAIssue struct {
 	Fields jiraIssueFields `json:"fields,omitempty"`
 }
 
+func (ff JiraFields) MantisID() string {
+	return cmp.Or(
+		ff.MantisID19001, ff.MantisID18913,
+		ff.MantisID15902,
+	)
+}
+
 //betteralign:skip
 type JiraFields struct {
 	Timetracking struct {
@@ -71,8 +79,11 @@ type JiraFields struct {
 	Aggregatetimespent            interface{} `json:"aggregatetimespent,omitempty"`
 	Resolutiondate                interface{} `json:"resolutiondate,omitempty"`
 	Timeoriginalestimate          interface{} `json:"timeoriginalestimate,omitempty"`
-	MantisID                      string      `json:"customfield_15902"` // Mantis,omitemptyID
-	Customfield11100              struct {
+	//  A Mantis külső azonosítót jelenleg a fieldID 15902 mezőben kapjuk teszten, ezt kérlek cseréld le a 19001-es fieldID mezőre, élesen pedig a 18913 fieldID-ban kell érkezzen.
+	MantisID15902    string `json:"customfield_15902"` // Mantis,omitemptyID
+	MantisID18913    string `json:"customfield_18913"` // Mantis,omitemptyID
+	MantisID19001    string `json:"customfield_19001"` // Mantis,omitemptyID
+	Customfield11100 struct {
 		ID    string `json:"id,omitempty"`
 		Name  string `json:"name,omitempty"`
 		Links struct {
@@ -630,6 +641,8 @@ func (svc *Jira) Load(tokensFile, jiraUser, jiraPassword string) {
 	}
 	_ = os.Remove(fh.Name())
 }
+
+func (svc *Jira) isTest() bool { return strings.Contains(svc.URL.Host, "-test.") }
 
 // URLFor returns the canonical url for the issue and the action.
 func (svc *Jira) URLFor(typ, id, action string) *url.URL {
