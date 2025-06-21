@@ -5,7 +5,7 @@ go 1.23.0
 toolchain go1.24.1
 
 require (
-	github.com/UNO-SOFT/zlog v0.8.7-0.20250516115808-b43bb9a5162f
+	github.com/UNO-SOFT/zlog v0.8.6
 	github.com/google/renameio/v2 v2.0.0
 	github.com/klauspost/compress v1.18.0
 	github.com/oklog/ulid/v2 v2.1.0
@@ -23,4 +23,4 @@ require (
 	golang.org/x/term v0.32.0 // indirect
 )
 
-replace github.com/UNO-SOFT/zlog => ../zlog
+// replace github.com/UNO-SOFT/zlog => ../zlog

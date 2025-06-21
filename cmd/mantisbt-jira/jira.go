@@ -61,7 +61,6 @@ type JIRAIssue struct {
 func (ff JiraFields) MantisID() string {
 	return cmp.Or(
 		ff.MantisID19001, ff.MantisID18913,
-		ff.MantisID15902,
 	)
 }
 
@@ -80,9 +79,8 @@ type JiraFields struct {
 	Resolutiondate                interface{} `json:"resolutiondate,omitempty"`
 	Timeoriginalestimate          interface{} `json:"timeoriginalestimate,omitempty"`
 	//  A Mantis külső azonosítót jelenleg a fieldID 15902 mezőben kapjuk teszten, ezt kérlek cseréld le a 19001-es fieldID mezőre, élesen pedig a 18913 fieldID-ban kell érkezzen.
-	MantisID15902    string `json:"customfield_15902"` // Mantis,omitemptyID
-	MantisID18913    string `json:"customfield_18913"` // Mantis,omitemptyID
-	MantisID19001    string `json:"customfield_19001"` // Mantis,omitemptyID
+	MantisID18913    string `json:"customfield_18913,omitempty"` // Mantis,omitemptyID
+	MantisID19001    string `json:"customfield_19001,omitempty"` // Mantis,omitemptyID
 	Customfield11100 struct {
 		ID    string `json:"id,omitempty"`
 		Name  string `json:"name,omitempty"`
@@ -582,6 +580,7 @@ func (svc *Jira) IssueTransition(ctx context.Context, issueID, transitionID stri
 
 // IssuePut puts (updates) an issue.
 func (svc *Jira) IssuePut(ctx context.Context, issue JIRAIssue) error {
+	svc.prepareIssueID(&issue)
 	b, err := json.Marshal(issue)
 	if err != nil {
 		return err
@@ -643,6 +642,19 @@ func (svc *Jira) Load(tokensFile, jiraUser, jiraPassword string) {
 }
 
 func (svc *Jira) isTest() bool { return strings.Contains(svc.URL.Host, "-test.") }
+func (svc *Jira) prepareIssueID(issue *JIRAIssue) {
+	if svc.isTest() {
+		if issue.Fields.MantisID18913 == "" {
+			issue.Fields.MantisID18913 = issue.Fields.MantisID19001
+		}
+		issue.Fields.MantisID19001 = ""
+	} else {
+		if issue.Fields.MantisID19001 == "" {
+			issue.Fields.MantisID19001 = issue.Fields.MantisID18913
+		}
+		issue.Fields.MantisID18913 = ""
+	}
+}
 
 // URLFor returns the canonical url for the issue and the action.
 func (svc *Jira) URLFor(typ, id, action string) *url.URL {

@@ -83,7 +83,7 @@ class JiraPlugin extends MantisPlugin {
 		// Szeretnénk, ha ez a mantis felületén a Bruno2 és Bruno3 INCIDENT projekt workflow-n tiltásra kerülne.
 		if( auth_get_current_user_id() !== $this->jira_user_id ) {
 			$t_break = false;
-			if( $p_old->status == 55 ) {
+			if( false && $p_old->status == 55 ) {
 				$p_new->status = $p_old->status; 
 				$t_break = true;
 			}
