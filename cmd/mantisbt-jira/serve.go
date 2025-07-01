@@ -46,18 +46,24 @@ func (svc *SVC) Close() error {
 
 func (svc *SVC) GetMantisID(ctx context.Context, issueID string) (string, error) {
 	//  A Mantis külső azonosítót jelenleg a fieldID 15902 mezőben kapjuk teszten, ezt kérlek cseréld le a 19001-es fieldID mezőre, élesen pedig a 18913 fieldID-ban kell érkezzen.
-	fld := "19001"
+	fld := "18913"
 	if svc.isTest() {
-		fld = "18913"
+		fld = "19001"
 	}
+	logger := logger.With("issueID", issueID, "field", fld)
 	issue, err := svc.IssueGet(ctx, issueID, []string{"customfield_" + fld})
 	if err != nil {
-		logger.Error("IssueGet", "issueID", issueID, "error", err)
+		logger.Error("IssueGet", "error", err)
 		return "", err
 	}
-	logger.Info("issue MantisID", "issueID", issueID, "mantisID", issue.Fields.MantisID())
+	mID := issue.Fields.MantisID()
+	if mID == "" {
+		logger.Warn("issue MantisID", "issue", issue)
+	} else {
+		logger.Info("issue MantisID", "mantisID", mID)
+	}
 	// fmt.Println(issue.Fields.MantisID)
-	return issue.Fields.MantisID(), nil
+	return mID, nil
 }
 
 func (svc *SVC) checkMantisIssueID(ctx context.Context, issueID string, mantisID int) (bool, error) {
