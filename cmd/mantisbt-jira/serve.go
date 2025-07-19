@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/google/renameio/v2"
+	"github.com/rogpeppe/retry"
 
 	"github.com/UNO-SOFT/mantisbt-plugins-Jira/cmd/mantisbt-jira/dirq"
 )
@@ -252,6 +253,7 @@ func serve(ctx context.Context, dir string, alertEmails []string) error {
 			if !di.Type().IsDir() {
 				continue
 			}
+			// Init only once per service
 			if _, ok := services[di.Name()]; ok {
 				continue
 			}
@@ -291,26 +293,31 @@ func serve(ctx context.Context, dir string, alertEmails []string) error {
 				return nil
 			}
 
-			ticker := time.NewTicker(1 * time.Second)
-			resetOnce := sync.OnceFunc(func() { ticker.Reset(15 * time.Second) })
 			go func() {
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					case <-ticker.C:
-						resetOnce()
-						if err := Q.Dequeue(ctx, g); err != nil {
-							if errors.Is(err, dirq.ErrEmpty) {
-								logger.Debug("Dequeue empty")
-							} else if errors.Is(err, errAuthenticate) {
-								logger.Warn("Dequeue", "error", err)
-								sendAlert(err)
-								return
-							} else {
-								logger.Error("Dequeue", "error", err)
-							}
+				normalStrategy := retry.Strategy{Delay: 15 * time.Second, MaxDelay: time.Hour, Factor: 1.5}
+				authErrStrategy := retry.Strategy{Delay: time.Hour, Factor: 2, MaxDelay: 6 * time.Hour}
+				var lastErrIsAuth bool
+				for iter := normalStrategy.Start(); ; {
+					if err := Q.Dequeue(ctx, g); err != nil {
+						var isAuth bool
+						if errors.Is(err, dirq.ErrEmpty) {
+							logger.Debug("Dequeue empty")
+						} else if errors.Is(err, errAuthenticate) {
+							logger.Warn("Dequeue", "error", err)
+							sendAlert(err)
+							isAuth = true
+						} else {
+							logger.Error("Dequeue", "error", err)
 						}
+						if lastErrIsAuth && !isAuth {
+							iter.Reset(&normalStrategy, nil)
+						} else if !lastErrIsAuth && isAuth {
+							iter.Reset(&authErrStrategy, nil)
+						}
+						lastErrIsAuth = isAuth
+					}
+					if !iter.Next(ctx.Done()) {
+						break
 					}
 				}
 			}()
