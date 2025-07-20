@@ -306,6 +306,9 @@ func serve(ctx context.Context, dir string, alertEmails []string) error {
 							logger.Warn("Dequeue", "error", err)
 							sendAlert(err)
 							isAuth = true
+						} else if os.IsNotExist(err) {
+							logger.Error("Deque", "error", err)
+							return
 						} else {
 							logger.Error("Dequeue", "error", err)
 						}
