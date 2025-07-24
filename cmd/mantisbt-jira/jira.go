@@ -1004,10 +1004,10 @@ func (svc *Jira) IssueDoTransition(ctx context.Context, issueID, transition, com
 */
 
 var JMTransitions = map[string][]string{
-	"IN_PROGRESS": []string{"11", "51"},
-	"CLOSED":      []string{"21", "61"},
-	"RESOLVED":    []string{"21", "61"},
-	"ON_HOLD":     []string{"41"},
+	"IN_PROGRESS": []string{"11", "61"},
+	"CLOSED":      []string{"21"},
+	"RESOLVED":    []string{"21"},
+	"ON_HOLD":     []string{"51"},
 }
 
 // IssueDoTransitionTo transits the issue's status.
