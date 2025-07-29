@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -67,6 +68,26 @@ func (svc *SVC) GetMantisID(ctx context.Context, issueID string) (string, error)
 	return mID, nil
 }
 
+func isIssueNotExist(err error) bool {
+	if err == nil {
+		return false
+	}
+	const issueNotExist = "Issue Does Not Exist"
+	var je *JIRAError
+	if errors.As(err, &je) {
+		if je.Message == issueNotExist {
+			return true
+		}
+		for _, m := range je.Messages {
+			if m == issueNotExist {
+				return true
+			}
+		}
+		return false
+	}
+	return strings.Contains(err.Error(), issueNotExist)
+}
+
 func (svc *SVC) checkMantisIssueID(ctx context.Context, issueID string, mantisID int) (bool, error) {
 	if mantisID == 0 {
 		logger.Warn("checkMantisIssueID", "mantisID", mantisID)
@@ -82,7 +103,9 @@ func (svc *SVC) checkMantisIssueID(ctx context.Context, issueID string, mantisID
 	issueMantisID, err := svc.GetMantisID(ctx, issueID)
 	if err != nil || issueMantisID == "" {
 		logger.Error("IssueGet", "issueID", issueID, "error", err)
-		return false, err
+		if isIssueNotExist(err) {
+			return false, fmt.Errorf("%w: %w", errSkip, err)
+		}
 	}
 	logger.Info("checkMantisIssueID", "mantisID", mantisID, "issueID", issueID, "issueMantisID", issueMantisID)
 	// fmt.Println(issue.Fields.MantisID)
@@ -285,10 +308,11 @@ func serve(ctx context.Context, dir string, alertEmails []string) error {
 			g := func(ctx context.Context, msg []byte) error {
 				logger.Warn("processOne", "msg", string(msg))
 				if err := processOne(ctx, svc, msg, logger); err != nil {
-					logger.Error("processOne", "msg", msg, "error", err)
-					if !errors.Is(err, errSkip) {
-						return err
+					logger.Error("processOne", "msg", msg, "error", err, "isSkip", errors.Is(err, errSkip))
+					if errors.Is(err, errSkip) || isIssueNotExist(err){
+						return nil
 					}
+					return err
 				}
 				return nil
 			}

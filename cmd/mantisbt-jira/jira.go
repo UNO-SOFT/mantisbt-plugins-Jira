@@ -1179,12 +1179,11 @@ func (t *Token) do(ctx context.Context, httpClient *http.Client, req *http.Reque
 		if httpClient.Transport == nil {
 			httpClient.Transport = http.DefaultTransport
 		}
-		if logEnabled {
+		if false && logEnabled {
 			httpClient.Transport = loghttp.Transport(httpClient.Transport)
 		} else {
 			httpClient.Transport = gzhttp.Transport(httpClient.Transport)
 		}
-		logger.Debug("logEnabled", "logtransport", httpClient.Transport)
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
