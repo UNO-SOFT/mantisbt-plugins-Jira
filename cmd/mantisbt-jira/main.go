@@ -409,10 +409,10 @@ func Main() error {
 	if client.Transport == nil {
 		client.Transport = http.DefaultTransport.(*http.Transport).Clone()
 	}
-	if logger.Enabled(ctx, slog.LevelDebug) {
+	if verbose > 1 {
 		client.Transport = loghttp.Transport(client.Transport)
 	}
-	logger.Debug("Main", "logtransport", client.Transport)
+	// logger.Debug("Main", "logtransport", client.Transport)
 	clientJar, err := cookiejar.New(nil)
 	if err != nil {
 		return err
