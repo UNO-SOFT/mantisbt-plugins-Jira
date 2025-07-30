@@ -73,7 +73,7 @@ class JiraPlugin extends MantisPlugin {
 			}
 	}
 
-	function bug_update( $p_event, $p_old, $p_new ) {
+	function bug_update( $p_event, $p_old, &$p_new ) {
 		$this->log('bug_update(' . $p_old->id . ' status=' . $p_old->status . '=>' . $p_new->status . ', priority=' . $p_old->priority . '=>' . $p_new->priority . ')' );
 
 		// https://www.unosoft.hu/mantis/alfa/view.php?id=17493#c192393
@@ -134,8 +134,6 @@ class JiraPlugin extends MantisPlugin {
 				$t_target_status_id ) 
 			);
 		}
-
-		return $p_new;
 	}
 
 	function issueid_get( $p_bug_id ) : string {

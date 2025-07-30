@@ -76,7 +76,7 @@ func (Q *Queue) Dequeue(ctx context.Context, f func(context.Context, []byte) err
 		if err != nil {
 			slog.Error("ReadDir", "dir", Q.Dir, "error", err)
 		}
-		slog.Debug("empty", "dir", Q.Dir)
+		// slog.Debug("empty", "dir", Q.Dir)
 		return err
 	}
 	names := make([]string, 0, len(dis))
@@ -87,7 +87,7 @@ func (Q *Queue) Dequeue(ctx context.Context, f func(context.Context, []byte) err
 			names = append(names, nm)
 		}
 	}
-	slog.Debug("ReadDir2", "names", names)
+	// slog.Debug("ReadDir2", "names", names)
 	if len(names) == 0 {
 		return ErrEmpty
 	}
