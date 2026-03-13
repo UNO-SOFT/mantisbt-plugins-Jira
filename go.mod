@@ -9,7 +9,7 @@ require (
 	github.com/google/renameio/v2 v2.0.0
 	github.com/klauspost/compress v1.18.0
 	github.com/oklog/ulid/v2 v2.1.1
-	github.com/peterbourgon/ff/v4 v4.0.0-alpha.4
+	github.com/peterbourgon/ff/v4 v4.0.0-beta.1
 	github.com/rjeczalik/notify v0.9.3
 	github.com/rogpeppe/retry v0.1.0
 	github.com/tgulacsi/go v0.28.5
@@ -24,3 +24,5 @@ require (
 )
 
 // replace github.com/UNO-SOFT/zlog => ../zlog
+
+replace github.com/peterbourgon/ff/v4 v4.0.0-beta.1 => github.com/UNO-SOFT/ff/v4 v4.0.0-beta.1.us
