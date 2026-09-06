@@ -85,7 +85,7 @@ class JiraPlugin extends MantisPlugin
     {
         $this->log('bug_update(' . $p_old->id . ' status=' . $p_old->status . '=>' . $p_new->status . ', priority=' . $p_old->priority . '=>' . $p_new->priority . ')');
 
-        if ($p_old->reporter_id != $this->jira_user_id) {
+        if ($p_old->reporter_id != $this->jira_user_id || $p_old->projection >= 50 || $p_new->projection >= 50) {
             return;
         }
 
