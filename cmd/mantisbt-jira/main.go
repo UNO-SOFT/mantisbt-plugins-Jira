@@ -23,8 +23,9 @@ import (
 	"github.com/UNO-SOFT/mantisbt-plugins-Jira/cmd/mantisbt-jira/dirq"
 	"github.com/UNO-SOFT/zlog/v2"
 	"github.com/UNO-SOFT/zlog/v2/loghttp"
-	"github.com/peterbourgon/ff/v4"
-	"github.com/peterbourgon/ff/v4/ffhelp"
+
+	"flag"
+	"github.com/UNO-SOFT/cli"
 	"github.com/tgulacsi/go/version"
 )
 
@@ -80,11 +81,12 @@ func Main() error {
 	defer svc.Close()
 
 	var mantisID int
-	FS := ff.NewFlagSet("attach")
-	FS.IntVar(&mantisID, 0, "mantisid", 0, "mantisID")
-	flagAttachFileName := FS.StringLong("filename", "", "override file name")
-	addAttachmentCmd := ff.Command{Name: "attach", Flags: FS,
-		Exec: func(ctx context.Context, args []string) error {
+	FS := flag.NewFlagSet("attach", flag.ContinueOnError)
+	FS.IntVar(&mantisID, "mantisid", 0, "mantisID")
+	flagAttachFileName := FS.String("filename", "", "override file name")
+	addAttachmentCmd := cli.Command{Name: "attach", Flags: FS,
+		Exec: func(ctx context.Context, state *cli.State) error {
+			args := state.Args
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			issueID := args[0]
@@ -135,10 +137,11 @@ func Main() error {
 		},
 	}
 
-	FS = ff.NewFlagSet("attach")
-	FS.IntVar(&mantisID, 0, "mantisid", 0, "mantisID")
-	addCommentCmd := ff.Command{Name: "comment", Flags: FS,
-		Exec: func(ctx context.Context, args []string) error {
+	FS = flag.NewFlagSet("attach", flag.ContinueOnError)
+	FS.IntVar(&mantisID, "mantisid", 0, "mantisID")
+	addCommentCmd := cli.Command{Name: "comment", Flags: FS,
+		Exec: func(ctx context.Context, state *cli.State) error {
+			args := state.Args
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			issueID := args[0]
@@ -172,8 +175,9 @@ func Main() error {
 		},
 	}
 
-	issueGetCmd := ff.Command{Name: "get",
-		Exec: func(ctx context.Context, args []string) error {
+	issueGetCmd := cli.Command{Name: "get",
+		Exec: func(ctx context.Context, state *cli.State) error {
+			args := state.Args
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			issueID := args[0]
@@ -190,8 +194,9 @@ func Main() error {
 		},
 	}
 
-	issueExistsCmd := ff.Command{Name: "exists",
-		Exec: func(ctx context.Context, args []string) error {
+	issueExistsCmd := cli.Command{Name: "exists",
+		Exec: func(ctx context.Context, state *cli.State) error {
+			args := state.Args
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			issueID := args[0]
@@ -209,8 +214,9 @@ func Main() error {
 		},
 	}
 
-	issueMantisIDCmd := ff.Command{Name: "mantisID",
-		Exec: func(ctx context.Context, args []string) error {
+	issueMantisIDCmd := cli.Command{Name: "mantisID",
+		Exec: func(ctx context.Context, state *cli.State) error {
+			args := state.Args
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			issueID := args[0]
@@ -228,9 +234,10 @@ func Main() error {
 		},
 	}
 
-	transitionsGetCmd := ff.Command{Name: "get",
+	transitionsGetCmd := cli.Command{Name: "get",
 		Usage: "get <issueID>",
-		Exec: func(ctx context.Context, args []string) error {
+		Exec: func(ctx context.Context, state *cli.State) error {
+			args := state.Args
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			issueID := args[0]
@@ -260,11 +267,12 @@ func Main() error {
 	}
 
 	var comment string
-	FS = ff.NewFlagSet("transition to")
-	FS.StringVar(&comment, 'm', "comment", "", "comment")
-	transitionToCmd := ff.Command{Name: "to", Flags: FS,
+	FS = flag.NewFlagSet("transition to", flag.ContinueOnError)
+	FS.StringVar(&comment, "comment", "", "comment")
+	transitionToCmd := cli.Command{Name: "to", Flags: FS,
 		Usage: "to <issueID> <targetStatusID>",
-		Exec: func(ctx context.Context, args []string) error {
+		Exec: func(ctx context.Context, state *cli.State) error {
+			args := state.Args
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			issueID := args[0]
@@ -289,15 +297,16 @@ func Main() error {
 				return err
 			}
 			return nil
-		},
+		}, FlagConfigs: []cli.FlagConfig{cli.FlagConfig{Name: "comment", Short: "m"}},
 	}
 
-	FS = ff.NewFlagSet("transition")
-	FS.StringVar(&comment, 'm', "comment", "", "comment")
-	issueDoTransitionCmd := ff.Command{Name: "transition", Flags: FS,
+	FS = flag.NewFlagSet("transition", flag.ContinueOnError)
+	FS.StringVar(&comment, "comment", "", "comment")
+	issueDoTransitionCmd := cli.Command{Name: "transition", Flags: FS,
 		Usage:       "transition <issueID> <transitionID>",
-		Subcommands: []*ff.Command{&transitionToCmd, &transitionsGetCmd},
-		Exec: func(ctx context.Context, args []string) error {
+		SubCommands: []*cli.Command{&transitionToCmd, &transitionsGetCmd},
+		Exec: func(ctx context.Context, state *cli.State) error {
+			args := state.Args
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			issueID := args[0]
@@ -322,11 +331,11 @@ func Main() error {
 				return err
 			}
 			return nil
-		},
+		}, FlagConfigs: []cli.FlagConfig{cli.FlagConfig{Name: "comment", Short: "m"}},
 	}
 
-	issueCmd := ff.Command{Name: "issue",
-		Subcommands: []*ff.Command{
+	issueCmd := cli.Command{Name: "issue",
+		SubCommands: []*cli.Command{
 			&issueGetCmd, &issueExistsCmd,
 			&issueMantisIDCmd,
 			&issueDoTransitionCmd,
@@ -334,10 +343,11 @@ func Main() error {
 		Exec: issueExistsCmd.Exec,
 	}
 
-	FS = ff.NewFlagSet("serve")
-	flagServeEmail := FS.StringLong("alert", "t.gulacsi+jira@unosoft.hu", "comma-separated list of emails to send alerts to")
-	serveCmd := ff.Command{Name: "serve", Flags: FS,
-		Exec: func(ctx context.Context, args []string) error {
+	FS = flag.NewFlagSet("serve", flag.ContinueOnError)
+	flagServeEmail := FS.String("alert", "t.gulacsi+jira@unosoft.hu", "comma-separated list of emails to send alerts to")
+	serveCmd := cli.Command{Name: "serve", Flags: FS,
+		Exec: func(ctx context.Context, state *cli.State) error {
+			args := state.Args
 			if len(args) != 0 {
 				queuesDir = args[0]
 			}
@@ -345,30 +355,31 @@ func Main() error {
 		},
 	}
 
-	FS = ff.NewFlagSet("jira")
-	FS.StringVar(&svc.BaseURL, 0, "jira-base", svc.BaseURL, "JIRA base URL (with basic auth!)")
-	FS.StringVar(&svc.BasicUser, 0, "basic-user", os.Getenv("JIRA_USER"), "JIRA user")
-	FS.StringVar(&svc.BasicUserPassword, 0, "basic-password", os.Getenv("JIRA_PASSWORD"), "JIRA password")
-	FS.StringVar(&svc.JIRAUser, 0, "jira-user", os.Getenv("SVC_USER"), "service user")
-	FS.StringVar(&svc.JIRAPassword, 0, "jira-password", os.Getenv("SVC_PASSWORD"), "service password")
-	FS.DurationVar(&timeout, 0, "timeout", 1*time.Minute, "timeout")
-	FS.Value('v', "verbose", &verbose, "verbose logging")
-	flagVersion := FS.BoolLongDefault("version", false, "print version")
-	FS.StringVar(&queuesDir, 0, "queues", "", "queues directory")
+	FS = flag.NewFlagSet("jira", flag.ContinueOnError)
+	FS.StringVar(&svc.BaseURL, "jira-base", svc.BaseURL, "JIRA base URL (with basic auth!)")
+	FS.StringVar(&svc.BasicUser, "basic-user", os.Getenv("JIRA_USER"), "JIRA user")
+	FS.StringVar(&svc.BasicUserPassword, "basic-password", os.Getenv("JIRA_PASSWORD"), "JIRA password")
+	FS.StringVar(&svc.JIRAUser, "jira-user", os.Getenv("SVC_USER"), "service user")
+	FS.StringVar(&svc.JIRAPassword, "jira-password", os.Getenv("SVC_PASSWORD"), "service password")
+	FS.DurationVar(&timeout, "timeout", 1*time.Minute, "timeout")
+	FS.Var(&verbose, "verbose", "verbose logging")
+	flagVersion := FS.Bool("version", false, "print version")
+	FS.StringVar(&queuesDir, "queues", "", "queues directory")
 	ucd, err := os.UserCacheDir()
 	if err != nil {
 		return err
 	}
 	// nosemgrep: go.lang.correctness.permissions.file_permission.incorrect-default-permission
 	_ = os.MkdirAll(ucd, 0750)
-	FS.StringVar(&svc.TokensFile, 0, "token", filepath.Join(ucd, "jira-token.json"), "JIRA token file")
-	app := ff.Command{Name: "jira", Flags: FS,
-		Subcommands: []*ff.Command{
+	FS.StringVar(&svc.TokensFile, "token", filepath.Join(ucd, "jira-token.json"), "JIRA token file")
+	app := cli.Command{Name: "jira", Flags: FS,
+		SubCommands: []*cli.Command{
 			&addAttachmentCmd, &addCommentCmd,
 			&issueCmd,
 			&serveCmd,
 		},
-		Exec: func(ctx context.Context, args []string) error {
+		Exec: func(ctx context.Context, state *cli.State) error {
+			args := state.Args
 			if len(args) == 0 {
 				args = append(args, "INCIDENT-6508")
 			}
@@ -384,14 +395,11 @@ func Main() error {
 			}
 			fmt.Println("comments:", comments)
 			return nil
-		},
+		}, FlagConfigs: []cli.FlagConfig{cli.FlagConfig{Name: "verbose", Short: "v"}},
 	}
-	if err := app.Parse(
-		os.Args[1:],
-		ff.WithEnvVars(),
-	); err != nil {
-		ffhelp.Command(&app).WriteTo(os.Stderr)
-		if errors.Is(err, ff.ErrHelp) {
+	if err := cli.Parse(&app, os.Args[1:]); err != nil {
+		cli.PrintHelp(os.Stderr, &app)
+		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
 		return err
@@ -421,7 +429,7 @@ func Main() error {
 	svc.Jira = Jira{HTTPClient: &client}
 
 	start := time.Now()
-	err = app.Run(ctx)
+	err = cli.Run(ctx, &app, nil)
 	logger.Info("run", "dur", time.Since(start).String())
 	return err
 }
